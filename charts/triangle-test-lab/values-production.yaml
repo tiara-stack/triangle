@@ -7,10 +7,4 @@ ingress:
   tlsSecretName: triangle-theerapakg-moe-tls
 
 nodeSelector:
-  deployment: tiara-stack
-
-tolerations:
-  - key: deployment
-    operator: Equal
-    value: tiara-stack
-    effect: NoSchedule
+  doks.digitalocean.com/node-pool: pool-tiara-stack
