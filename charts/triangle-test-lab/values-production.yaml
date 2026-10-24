@@ -1,0 +1,16 @@
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  host: triangle.theerapakg.moe
+  tlsSecretName: triangle-theerapakg-moe-tls
+
+nodeSelector:
+  deployment: tiara-stack
+
+tolerations:
+  - key: deployment
+    operator: Equal
+    value: tiara-stack
+    effect: NoSchedule

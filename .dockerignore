@@ -1,0 +1,9 @@
+.git
+.github
+.impeccable
+.tanstack
+node_modules
+dist
+.output
+*.log
+.env*

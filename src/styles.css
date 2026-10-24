@@ -1,0 +1,233 @@
+@layer reset, astryx-base, astryx-theme, app;
+
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
+@import "@astryxdesign/theme-neutral/fonts.css";
+
+@layer app {
+  ::selection {
+    background: var(--triangle-lab-cobalt-muted);
+    color: var(--triangle-lab-ink);
+  }
+
+  .lab-shell {
+    color: var(--triangle-lab-ink);
+  }
+
+  .lab-page-header {
+    border-bottom: var(--border-width) solid var(--triangle-lab-line);
+    padding-bottom: var(--spacing-3);
+  }
+
+  .lab-page-with-history-drawer {
+    padding-block-end: var(--spacing-8);
+  }
+
+  .lab-mobile-case-picker {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    padding-block: var(--spacing-2);
+    border-block-end: var(--border-width) solid var(--triangle-lab-line);
+  }
+
+  .lab-mobile-add-case {
+    flex: 0 0 auto;
+  }
+
+  .lab-history-drawer {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 20;
+    padding: var(--spacing-2) var(--spacing-3);
+    border-block-start: var(--border-width) solid var(--triangle-lab-line);
+    border-inline: 0;
+    border-block-end: 0;
+    border-start-start-radius: var(--radius-container);
+    border-start-end-radius: var(--radius-container);
+    background: var(--color-background-surface);
+  }
+
+  .lab-history-scroll {
+    max-block-size: min(50vh, 24rem);
+  }
+
+  .lab-product-name {
+    color: var(--triangle-lab-cobalt-press);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .lab-page-title {
+    color: var(--triangle-lab-ink);
+  }
+
+  .lab-case-library {
+    background: var(--triangle-lab-surface);
+  }
+
+  .lab-case-row:hover,
+  .lab-case-row:focus-within {
+    background-image: linear-gradient(var(--color-overlay-hover), var(--color-overlay-hover));
+  }
+
+  .lab-case-selector:hover {
+    background-image: none;
+  }
+
+  .lab-case-selector[aria-pressed="true"] {
+    background: var(--triangle-lab-cobalt-muted);
+    box-shadow: inset var(--border-width) 0 0 var(--triangle-lab-cobalt);
+    color: var(--triangle-lab-ink);
+  }
+
+  .lab-case-selector[aria-pressed="true"]:hover {
+    background: var(--triangle-lab-cobalt-muted);
+  }
+
+  .lab-workspace {
+    background: var(--triangle-lab-surface);
+  }
+
+  .lab-sheet-band {
+    align-items: center;
+    background: var(--triangle-lab-cobalt);
+    color: var(--color-on-accent);
+    padding: var(--spacing-2) var(--spacing-3);
+  }
+
+  .lab-sheet-title,
+  .lab-sheet-count {
+    color: var(--color-on-accent);
+  }
+
+  .lab-sheet-count {
+    white-space: nowrap;
+  }
+
+  .lab-result-panel {
+    border-top: var(--border-width) solid var(--triangle-lab-line);
+    background: var(--triangle-lab-surface);
+  }
+
+  .lab-result-panel .astryx-section {
+    border-top-color: var(--triangle-lab-line);
+    background: var(--triangle-lab-surface);
+  }
+
+  .lab-result-expected .astryx-section {
+    background: var(--triangle-lab-expected);
+  }
+
+  .lab-result-observed .astryx-section {
+    background: var(--triangle-lab-observed);
+  }
+
+  .lab-assertion--failed {
+    color: var(--triangle-lab-correction);
+  }
+
+  .lab-assertion--passed {
+    color: var(--triangle-lab-pass-ink);
+  }
+
+  .lab-assertion--failed .lab-assertion__label {
+    color: var(--triangle-lab-correction);
+  }
+
+  .lab-assertion--passed .lab-assertion__label {
+    color: var(--triangle-lab-pass-ink);
+  }
+
+  .triangle-diagram {
+    position: relative;
+    display: grid;
+    width: 100%;
+    aspect-ratio: 1;
+    max-block-size: min(60vh, 34rem);
+    min-height: 13.75rem;
+    overflow: hidden;
+    border-radius: var(--radius-container);
+    background: var(--color-background-surface);
+  }
+
+  @media (max-width: 1000px) {
+    .triangle-diagram {
+      aspect-ratio: 1.4;
+      max-block-size: none;
+    }
+  }
+
+  .triangle-fallback {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    color: var(--color-text-primary);
+    opacity: 1;
+    transition: opacity var(--duration-fast) ease-out;
+  }
+
+  .triangle-fallback.is-hidden {
+    opacity: 0;
+  }
+
+  .triangle-fallback__outline {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 3;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .triangle-fallback circle {
+    fill: currentColor;
+  }
+
+  .triangle-fallback text {
+    fill: currentColor;
+    font-family: var(--font-family-body);
+    font-size: var(--text-body-size);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .triangle-fallback--invalid {
+    color: var(--color-error);
+  }
+
+  .triangle-fallback--invalid line {
+    stroke: currentColor;
+    stroke-dasharray: 7 7;
+    stroke-width: 3;
+  }
+
+  .triangle-fallback--invalid circle {
+    fill: currentColor;
+  }
+
+  .triangle-fallback--invalid text {
+    fill: currentColor;
+    font-weight: var(--font-weight-bold);
+  }
+
+  .triangle-canvas {
+    position: absolute !important;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 0;
+    transition: opacity var(--duration-fast) ease-out;
+  }
+
+  .triangle-canvas.is-ready {
+    opacity: 1;
+  }
+
+  .triangle-canvas canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+  }
+}

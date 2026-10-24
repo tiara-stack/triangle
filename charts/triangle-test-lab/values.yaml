@@ -1,0 +1,33 @@
+replicaCount: 1
+
+image:
+  registry: registry.digitalocean.com
+  repository: triangle-test-lab
+  tag: latest
+  pullPolicy: IfNotPresent
+  pullSecretName: ""
+
+container:
+  port: 3000
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  host: ""
+  tlsSecretName: ""
+
+nodeSelector: {}
+tolerations: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

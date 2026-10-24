@@ -1,0 +1,209 @@
+name: CI and deployment
+
+env:
+  HELM_VERSION: v3.18.6
+
+permissions: {}
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build production server
+        run: pnpm build
+
+      - name: Install Helm
+        shell: bash
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" -o /tmp/helm.tar.gz
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+          helm version
+
+      - name: Lint and render production chart
+        shell: bash
+        run: |
+          helm lint --strict charts/triangle-test-lab \
+            --values charts/triangle-test-lab/values.yaml \
+            --values charts/triangle-test-lab/values-production.yaml \
+            --set-string image.registry=registry.digitalocean.com/ci-validation \
+            --set-string image.repository=triangle-test-lab \
+            --set-string image.tag=ci-validation \
+            --set-string image.pullSecretName=ci-validation
+          helm template triangle-test-lab charts/triangle-test-lab \
+            --namespace triangle-test-lab \
+            --values charts/triangle-test-lab/values.yaml \
+            --values charts/triangle-test-lab/values-production.yaml \
+            --set-string image.registry=registry.digitalocean.com/ci-validation \
+            --set-string image.repository=triangle-test-lab \
+            --set-string image.tag=ci-validation \
+            --set-string image.pullSecretName=ci-validation > /tmp/triangle-test-lab.yaml
+
+  build_image:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set image tag
+        id: image
+        shell: bash
+        env:
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+        run: |
+          tag="${GITHUB_SHA::12}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+          if [[ "$GITHUB_EVENT_NAME" != "pull_request" && ( "$GITHUB_REF_NAME" == "main" || "$GITHUB_REF_NAME" == "master" ) ]]; then
+            : "${REGISTRY_NAME:?REGISTRY_NAME repository variable is required for production pushes}"
+            echo "push=true" >> "$GITHUB_OUTPUT"
+            echo "name=registry.digitalocean.com/${REGISTRY_NAME}/triangle-test-lab:${tag}" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "name=triangle-test-lab:${tag}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install doctl
+        if: steps.image.outputs.push == 'true'
+        uses: digitalocean/action-doctl@135ac0aa0eed4437d547c6f12c364d3006b42824 # v2.5.1
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Log in to DigitalOcean Container Registry
+        if: steps.image.outputs.push == 'true'
+        run: doctl registry login --expiry-seconds 1200
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+      - name: Build and push image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ steps.image.outputs.push == 'true' }}
+          tags: ${{ steps.image.outputs.name }}
+          cache-from: type=gha,scope=triangle-test-lab
+          cache-to: type=gha,mode=max,scope=triangle-test-lab
+
+  deploy:
+    name: Deploy to triangle.theerapakg.moe
+    needs: build_image
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: triangle-production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Check deployment configuration
+        env:
+          CLUSTER_NAME: ${{ vars.CLUSTER_NAME }}
+          K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+        shell: bash
+        run: |
+          : "${CLUSTER_NAME:?CLUSTER_NAME repository variable is required}"
+          : "${K8S_NAMESPACE:?K8S_NAMESPACE repository variable is required}"
+          : "${REGISTRY_NAME:?REGISTRY_NAME repository variable is required}"
+
+      - name: Set image tag
+        id: image
+        shell: bash
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@135ac0aa0eed4437d547c6f12c364d3006b42824 # v2.5.1
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Save DigitalOcean kubeconfig
+        env:
+          CLUSTER_NAME: ${{ vars.CLUSTER_NAME }}
+        run: doctl kubernetes cluster kubeconfig save --expiry-seconds 1800 "$CLUSTER_NAME"
+
+      - name: Install Helm
+        shell: bash
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" -o /tmp/helm.tar.gz
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+          helm version
+
+      - name: Deploy Helm release
+        env:
+          K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          REGISTRY_NAME: ${{ vars.REGISTRY_NAME }}
+          IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        shell: bash
+        run: |
+          helm upgrade --install triangle-test-lab charts/triangle-test-lab \
+            --namespace "$K8S_NAMESPACE" \
+            --create-namespace \
+            --atomic \
+            --wait \
+            --timeout 10m \
+            --values charts/triangle-test-lab/values.yaml \
+            --values charts/triangle-test-lab/values-production.yaml \
+            --set-string "image.registry=registry.digitalocean.com/${REGISTRY_NAME}" \
+            --set-string "image.repository=triangle-test-lab" \
+            --set-string "image.tag=${IMAGE_TAG}" \
+            --set-string "image.pullSecretName=${REGISTRY_NAME}"
+
+      - name: Verify production hostname
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error --max-time 10 \
+              https://triangle.theerapakg.moe/ --output /dev/null; then
+              echo "triangle.theerapakg.moe is responding."
+              exit 0
+            fi
+            echo "Waiting for ingress and TLS to become ready (${attempt}/30)."
+            sleep 10
+          done
+          echo "Production hostname did not return HTTP 200." >&2
+          exit 1
