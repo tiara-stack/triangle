@@ -55,6 +55,22 @@ export type TriangleCase = {
   values: SideValues;
 };
 
+export const CaseSourceSchema = Schema.Literals([
+  "example:defect",
+  "example:success",
+  "custom",
+]);
+
+export const TriangleCaseSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  description: Schema.optionalKey(Schema.String),
+  failureExplanation: Schema.optionalKey(Schema.String),
+  source: CaseSourceSchema,
+  tags: Schema.Array(Schema.String),
+  values: SideValuesSchema,
+});
+
 export type VerifiedCase = TriangleCase & { source: "example:defect" };
 
 export type ValidCase = TriangleCase & { source: "example:success" };

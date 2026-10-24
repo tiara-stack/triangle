@@ -1,7 +1,10 @@
-import { Atom } from "effect/reactivity";
+import { Schema } from "effect";
 import {
   labCases,
   verifiedCases,
+  SideValuesSchema,
+  TriangleCaseSchema,
+  TriangleRunSchema,
   type CaseId,
   type SideValues,
   type TriangleCase,
@@ -10,6 +13,13 @@ import {
 
 export type CaseStatus = "failed" | "passed" | "not-run" | "modified";
 
+export type BatchProgress = {
+  current: number;
+  total: number;
+};
+
+export type LastRunMode = "single" | "batch";
+
 export type RunRecord = {
   id: number;
   caseId: CaseId;
@@ -17,19 +27,41 @@ export type RunRecord = {
   result: TriangleRun;
 };
 
-export type LabState = {
-  cases: ReadonlyArray<TriangleCase>;
-  caseFilters: ReadonlyArray<string>;
-  selectedCaseIds: ReadonlyArray<CaseId>;
-  activeCaseId: CaseId;
-  values: SideValues;
-  valuesByCaseId: Record<CaseId, SideValues>;
-  result: TriangleRun | null;
-  resultsByCaseId: Record<CaseId, TriangleRun | null>;
-  statuses: Record<CaseId, CaseStatus>;
-  history: ReadonlyArray<RunRecord>;
-  isDirty: boolean;
-};
+const CaseStatusSchema = Schema.Literals(["failed", "passed", "not-run", "modified"]);
+
+const RunRecordSchema = Schema.Struct({
+  id: Schema.Number,
+  caseId: Schema.String,
+  name: Schema.String,
+  result: TriangleRunSchema,
+});
+
+const BatchProgressSchema = Schema.Struct({
+  current: Schema.Number,
+  total: Schema.Number,
+});
+
+export const LabStateFields = {
+  cases: Schema.Array(TriangleCaseSchema),
+  caseFilters: Schema.Array(Schema.String),
+  selectedCaseIds: Schema.Array(Schema.String),
+  activeCaseId: Schema.String,
+  values: SideValuesSchema,
+  valuesByCaseId: Schema.Record(Schema.String, SideValuesSchema),
+  result: Schema.NullOr(TriangleRunSchema),
+  resultsByCaseId: Schema.Record(Schema.String, Schema.NullOr(TriangleRunSchema)),
+  statuses: Schema.Record(Schema.String, CaseStatusSchema),
+  history: Schema.Array(RunRecordSchema),
+  isDirty: Schema.Boolean,
+  batchProgress: Schema.NullOr(BatchProgressSchema),
+  batchError: Schema.NullOr(Schema.String),
+  runError: Schema.NullOr(Schema.String),
+  lastRunMode: Schema.NullOr(Schema.Literals(["single", "batch"])),
+} as const;
+
+export const LabStateSchema = Schema.Struct(LabStateFields);
+
+export type LabState = Schema.Schema.Type<typeof LabStateSchema>;
 
 export type CaseFilterOption = {
   value: string;
@@ -39,29 +71,32 @@ export type CaseFilterOption = {
 };
 
 const firstCase = verifiedCases[0];
-const valuesByCaseId = Object.fromEntries(
-  labCases.map((testCase) => [testCase.id, { ...testCase.values }]),
-) as Record<CaseId, SideValues>;
-const resultsByCaseId = Object.fromEntries(
-  labCases.map((testCase) => [testCase.id, null]),
-) as Record<CaseId, TriangleRun | null>;
-const statuses = Object.fromEntries(
-  labCases.map((testCase) => [testCase.id, "not-run"]),
-) as Record<CaseId, CaseStatus>;
 
-export const labStateAtom = Atom.make<LabState>({
-  cases: labCases,
-  caseFilters: ["example:defect", "example:success"],
-  selectedCaseIds: [],
-  activeCaseId: firstCase.id,
-  values: firstCase.values,
-  valuesByCaseId,
-  result: null,
-  resultsByCaseId,
-  statuses,
-  history: [],
-  isDirty: false,
-});
+export function createInitialLabState(): LabState {
+  return {
+    cases: labCases,
+    caseFilters: ["example:defect", "example:success"],
+    selectedCaseIds: [],
+    activeCaseId: firstCase.id,
+    values: firstCase.values,
+    valuesByCaseId: Object.fromEntries(
+      labCases.map((testCase) => [testCase.id, { ...testCase.values }]),
+    ) as Record<CaseId, SideValues>,
+    result: null,
+    resultsByCaseId: Object.fromEntries(
+      labCases.map((testCase) => [testCase.id, null]),
+    ) as Record<CaseId, TriangleRun | null>,
+    statuses: Object.fromEntries(
+      labCases.map((testCase) => [testCase.id, "not-run"]),
+    ) as Record<CaseId, CaseStatus>,
+    history: [],
+    isDirty: false,
+    batchProgress: null,
+    batchError: null,
+    runError: null,
+    lastRunMode: null,
+  };
+}
 
 export const sourceCaseFilters = ["example:defect", "example:success", "custom"] as const;
 
@@ -125,8 +160,7 @@ export function filterCasesByTags(
   );
 }
 
-export const caseFilterOptionsAtom = Atom.make((get): ReadonlyArray<CaseFilterOption> => {
-  const cases = get(labStateAtom).cases;
+export function makeCaseFilterOptions(cases: ReadonlyArray<TriangleCase>): ReadonlyArray<CaseFilterOption> {
   const exampleTags = new Set(
     cases
       .filter((testCase) => testCase.source !== "custom")
@@ -149,9 +183,4 @@ export const caseFilterOptionsAtom = Atom.make((get): ReadonlyArray<CaseFilterOp
     group: filterGroupForTag(value),
     count: filterCasesByTags(cases, [value]).length,
   }));
-});
-
-export const visibleCasesAtom = Atom.make((get): ReadonlyArray<TriangleCase> => {
-  const { cases, caseFilters } = get(labStateAtom);
-  return filterCasesByTags(cases, caseFilters);
-});
+}

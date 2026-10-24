@@ -22,6 +22,7 @@
     "@tanstack/react-router": "1.132.0",
     "@tanstack/react-start": "1.132.0",
     "@tanstack/router-core": "1.132.0",
+    "@typeonce/effect-machine": "0.46.0",
     "effect": "4.0.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",

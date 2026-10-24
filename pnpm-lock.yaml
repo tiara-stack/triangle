@@ -38,6 +38,9 @@ importers:
       '@tanstack/router-core':
         specifier: 1.132.0
         version: 1.132.0
+      '@typeonce/effect-machine':
+        specifier: 0.46.0
+        version: 0.46.0(effect@4.0.6)
       effect:
         specifier: 4.0.6
         version: 4.0.6
@@ -797,6 +800,12 @@ packages:
 
   '@tweenjs/tween.js@23.1.3':
     resolution: {integrity: sha512-vJmvvwFxYuGnF2axRtPYocag6Clbb5YS7kLL+SO/TeVFzHqDIWrNKYtcsPMibjDx9O+bu+psAy9NKfWklassUA==}
+
+  '@typeonce/effect-machine@0.46.0':
+    resolution: {integrity: sha512-Fsvvzf2htH6XqrROyBlEonneuVvZjlTqdoXlY7cNnttN6gb/jWVZJDGtssehfKiN83NRLqT4Df22/Y9UiuK2vg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      effect: ^4.0.0
 
   '@types/draco3d@1.4.10':
     resolution: {integrity: sha512-AX22jp8Y7wwaBgAixaSvkoG4M/+PlAcm3Qs4OW8yT9DM4xUpWKeFhLueTAyZF39pviAdcDdeJoACapiAceqNcw==}
@@ -2666,6 +2675,10 @@ snapshots:
   '@tanstack/virtual-file-routes@1.132.0': {}
 
   '@tweenjs/tween.js@23.1.3': {}
+
+  '@typeonce/effect-machine@0.46.0(effect@4.0.6)':
+    dependencies:
+      effect: 4.0.6
 
   '@types/draco3d@1.4.10': {}
 

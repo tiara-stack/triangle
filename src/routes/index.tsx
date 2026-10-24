@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useAtom, useAtomSet, useAtomValue } from "@effect/atom-react";
-import { Atom } from "effect/reactivity";
-import { createRef, useRef, useState, type FormEvent, type RefObject } from "react";
+import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { createRef, useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { Button } from "@astryxdesign/core/Button";
@@ -26,15 +25,20 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import { useMediaQuery } from "@astryxdesign/core/hooks";
 import { TriangleDiagram } from "../components/TriangleDiagram";
-import { runTriangleAtom } from "../lib/labActions";
 import {
-  caseFilterOptionsAtom,
-  filterCasesByTags,
-  labStateAtom,
   sourceCaseFilters,
-  visibleCasesAtom,
   type CaseFilterOption,
 } from "../lib/labState";
+import {
+  caseFilterOptionsAtom,
+  isBusyAtom,
+  isRunningBatchAtom,
+  isRunningCaseAtom,
+  LabEvents,
+  labMachineAtom,
+  labStateAtom,
+  visibleCasesAtom,
+} from "../lib/labMachine";
 import {
   type CaseId,
   type SideValues,
@@ -123,9 +127,11 @@ function describeVisibleCaseCount(visibleCount: number, totalCount: number): str
 }
 
 function TriangleLab() {
-  const [state, setState] = useAtom(labStateAtom);
+  const state = useAtomValue(labStateAtom);
+  const send = useAtomSet(labMachineAtom.send);
   const isNarrow = useMediaQuery("(max-width: 1000px)");
   const caseSelectorRefs = useRef(new Map<CaseId, RefObject<HTMLButtonElement | null>>());
+  const previousHistoryLength = useRef(state.history.length);
   const [inputError, setInputError] = useState<InputError | null>(null);
   const [customCaseName, setCustomCaseName] = useState("");
   const [customCaseNameError, setCustomCaseNameError] = useState<string | null>(null);
@@ -137,19 +143,16 @@ function TriangleLab() {
   const [isCustomCaseDialogOpen, setIsCustomCaseDialogOpen] = useState(false);
   const [isMobileCaseLibraryOpen, setIsMobileCaseLibraryOpen] = useState(false);
   const [isCaseToolsOpen, setIsCaseToolsOpen] = useState(false);
-  const [isBatchRunning, setIsBatchRunning] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
-  const [batchError, setBatchError] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const visibleCases = useAtomValue(visibleCasesAtom);
   const caseFilterOptions = useAtomValue(caseFilterOptionsAtom);
   const groupedCaseFilterOptions = groupFilterOptions(caseFilterOptions);
-  const runState = useAtomValue(runTriangleAtom);
-  const runTriangle = useAtomSet(runTriangleAtom, { mode: "promise" });
-  const resetRunState = useAtomSet(runTriangleAtom);
-  const isRunning = runState.waiting;
-  const isBusy = isRunning || isBatchRunning;
-  const hasRunError = runState._tag === "Failure";
+  const isRunning = useAtomValue(isRunningCaseAtom);
+  const isBatchRunning = useAtomValue(isRunningBatchAtom);
+  const isBusy = useAtomValue(isBusyAtom);
+  const batchProgress = state.batchProgress;
+  const batchError = state.batchError;
+  const hasRunError = state.runError !== null;
 
   function getCaseSelectorRef(caseId: CaseId): RefObject<HTMLButtonElement | null> {
     let selectorRef = caseSelectorRefs.current.get(caseId);
@@ -164,51 +167,55 @@ function TriangleLab() {
   const activeCaseNumber = state.cases.findIndex((testCase) => testCase.id === state.activeCaseId) + 1;
   const lastResult = state.result;
 
+  useEffect(() => {
+    if (state.history.length <= previousHistoryLength.current) return;
+
+    if (state.lastRunMode === "batch" && state.batchProgress !== null) return;
+
+    previousHistoryLength.current = state.history.length;
+    if (!isNarrow || state.batchError !== null || state.runError !== null) return;
+
+    window.requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (state.lastRunMode === "batch") {
+        document.getElementById("run-ledger-title")?.scrollIntoView({
+          behavior: reduceMotion ? "auto" : "smooth",
+          block: "start",
+        });
+        return;
+      }
+
+      const resultPanel = document.getElementById("result-panel");
+      resultPanel?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "center",
+      });
+    });
+  }, [
+    isNarrow,
+    state.batchError,
+    state.batchProgress,
+    state.history.length,
+    state.lastRunMode,
+    state.runError,
+  ]);
+
   function selectCase(testCase: TriangleCase) {
-    resetRunState(Atom.Reset);
+    send(LabEvents.SelectCase({ caseId: testCase.id }));
     setInputError(null);
     if (isNarrow) {
       setIsMobileCaseLibraryOpen(false);
       setIsCaseToolsOpen(false);
     }
-    setState((previous) => {
-      const values = previous.valuesByCaseId[testCase.id];
-      return {
-        ...previous,
-        activeCaseId: testCase.id,
-        values,
-        result: previous.resultsByCaseId[testCase.id],
-        isDirty: previous.statuses[testCase.id] === "modified",
-      };
-    });
   }
 
   function updateCaseFilters(nextFilters: ReadonlyArray<string>) {
-    resetRunState(Atom.Reset);
+    send(LabEvents.UpdateCaseFilters({ filters: [...nextFilters] }));
     setInputError(null);
-    setState((previous) => {
-      const matchingCases = filterCasesByTags(previous.cases, nextFilters);
-      const visibleCaseIds = new Set(matchingCases.map((testCase) => testCase.id));
-      const selectedCaseIds = previous.selectedCaseIds.filter((caseId) => visibleCaseIds.has(caseId));
-      const activeCaseIsVisible = matchingCases.some((testCase) => testCase.id === previous.activeCaseId);
-      const nextCase = !activeCaseIsVisible ? matchingCases[0] : undefined;
-
-      if (!nextCase) return { ...previous, caseFilters: nextFilters, selectedCaseIds };
-
-      return {
-        ...previous,
-        caseFilters: nextFilters,
-        selectedCaseIds,
-        activeCaseId: nextCase.id,
-        values: previous.valuesByCaseId[nextCase.id],
-        result: previous.resultsByCaseId[nextCase.id],
-        isDirty: previous.statuses[nextCase.id] === "modified",
-      };
-    });
   }
 
   function openCustomCaseDialog() {
-    resetRunState(Atom.Reset);
+    send(LabEvents.ClearRunError());
     setInputError(null);
     setEditingCustomCaseId(null);
     setCustomCaseNameError(null);
@@ -223,7 +230,7 @@ function TriangleLab() {
 
   function openEditCustomCaseDialog(testCase: TriangleCase) {
     if (testCase.source !== "custom") return;
-    resetRunState(Atom.Reset);
+    send(LabEvents.ClearRunError());
     setInputError(null);
     setEditingCustomCaseId(testCase.id);
     setCustomCaseNameError(null);
@@ -260,41 +267,7 @@ function TriangleLab() {
     const description = customCaseDescription.trim();
     const tags = parseCustomTags(customCaseTags);
     const values = { ...customCaseValues };
-    if (editingCustomCaseId) {
-      const caseId = editingCustomCaseId;
-      setState((previous) => {
-        const previousValues = previous.valuesByCaseId[caseId];
-        const valuesChanged =
-          values.a !== previousValues.a || values.b !== previousValues.b || values.c !== previousValues.c;
-        const result = valuesChanged ? null : previous.resultsByCaseId[caseId];
-        const status = result ? (result.failed ? "failed" : "passed") : "not-run";
-
-        return {
-          ...previous,
-          cases: previous.cases.map((testCase) =>
-            testCase.id === caseId && testCase.source === "custom"
-              ? { ...testCase, name, description: description || undefined, tags, values }
-              : testCase,
-          ),
-          caseFilters: ["custom"],
-          activeCaseId: caseId,
-          values,
-          valuesByCaseId: { ...previous.valuesByCaseId, [caseId]: values },
-          result,
-          resultsByCaseId: { ...previous.resultsByCaseId, [caseId]: result },
-          statuses: { ...previous.statuses, [caseId]: status },
-          isDirty: false,
-        };
-      });
-      setIsCustomCaseDialogOpen(false);
-      if (isNarrow) {
-        setIsMobileCaseLibraryOpen(false);
-        setIsCaseToolsOpen(false);
-      }
-      return;
-    }
-
-    const id = createSessionCaseId(state.cases);
+    const id = editingCustomCaseId ?? createSessionCaseId(state.cases);
     const testCase: TriangleCase = {
       id,
       name,
@@ -304,20 +277,7 @@ function TriangleLab() {
       values,
     };
 
-    resetRunState(Atom.Reset);
-    setState((previous) => ({
-      ...previous,
-      cases: [...previous.cases, testCase],
-      caseFilters: ["custom"],
-      selectedCaseIds: [],
-      activeCaseId: id,
-      values,
-      valuesByCaseId: { ...previous.valuesByCaseId, [id]: values },
-      result: null,
-      resultsByCaseId: { ...previous.resultsByCaseId, [id]: null },
-      statuses: { ...previous.statuses, [id]: "not-run" },
-      isDirty: false,
-    }));
+    send(LabEvents.SaveCustomCase({ testCase }));
     setIsCustomCaseDialogOpen(false);
     if (isNarrow) {
       setIsMobileCaseLibraryOpen(false);
@@ -328,33 +288,9 @@ function TriangleLab() {
   function deleteActiveCustomCase() {
     if (activeCase.source !== "custom") return;
 
-    resetRunState(Atom.Reset);
+    send(LabEvents.DeleteCustomCase({ caseId: activeCase.id }));
     setInputError(null);
     setIsDeleteDialogOpen(false);
-    setState((previous) => {
-      const cases = previous.cases.filter((testCase) => testCase.id !== activeCase.id);
-      const valuesByCaseId = { ...previous.valuesByCaseId };
-      const resultsByCaseId = { ...previous.resultsByCaseId };
-      const statuses = { ...previous.statuses };
-      delete valuesByCaseId[activeCase.id];
-      delete resultsByCaseId[activeCase.id];
-      delete statuses[activeCase.id];
-      const nextCase = cases.find((testCase) => testCase.source !== "custom")!;
-
-      return {
-        ...previous,
-        cases,
-        caseFilters: [],
-        selectedCaseIds: previous.selectedCaseIds.filter((caseId) => caseId !== activeCase.id),
-        activeCaseId: nextCase.id,
-        values: valuesByCaseId[nextCase.id],
-        valuesByCaseId,
-        result: resultsByCaseId[nextCase.id],
-        resultsByCaseId,
-        statuses,
-        isDirty: statuses[nextCase.id] === "modified",
-      };
-    });
     caseSelectorRefs.current.delete(activeCase.id);
     if (isNarrow) {
       setIsMobileCaseLibraryOpen(false);
@@ -363,64 +299,22 @@ function TriangleLab() {
   }
 
   function toggleCaseForBatch(caseId: CaseId) {
-    setState((previous) => ({
-      ...previous,
-      selectedCaseIds: previous.selectedCaseIds.includes(caseId)
-        ? previous.selectedCaseIds.filter((selectedId) => selectedId !== caseId)
-        : [...previous.selectedCaseIds, caseId],
-    }));
+    send(LabEvents.ToggleCaseForBatch({ caseId }));
   }
 
   function updateSide(side: keyof SideValues, value: string) {
     if (activeCase.source !== "custom") return;
-    resetRunState(Atom.Reset);
+    send(LabEvents.UpdateSide({ side, value }));
     setInputError(null);
-    setState((previous) => {
-      const values = { ...previous.values, [side]: value };
-      return {
-        ...previous,
-        values,
-        valuesByCaseId: { ...previous.valuesByCaseId, [previous.activeCaseId]: values },
-        result: null,
-        resultsByCaseId: { ...previous.resultsByCaseId, [previous.activeCaseId]: null },
-        statuses: { ...previous.statuses, [previous.activeCaseId]: "modified" },
-        isDirty: true,
-      };
-    });
   }
 
   function resetCase() {
-    resetRunState(Atom.Reset);
+    send(LabEvents.ResetCase());
     setInputError(null);
-    const testCase = state.cases.find((item) => item.id === state.activeCaseId)!;
-    const priorPresetRun = [...state.history].reverse().find((run) =>
-      run.caseId === testCase.id &&
-      run.result.values.a === testCase.values.a &&
-      run.result.values.b === testCase.values.b &&
-      run.result.values.c === testCase.values.c,
-    );
-    const result = priorPresetRun?.result ?? null;
-    const status = priorPresetRun
-      ? (priorPresetRun.result.failed ? "failed" : "passed")
-      : "not-run";
-    setState((previous) => ({
-      ...previous,
-      values: testCase.values,
-      valuesByCaseId: { ...previous.valuesByCaseId, [testCase.id]: testCase.values },
-      result,
-      resultsByCaseId: { ...previous.resultsByCaseId, [testCase.id]: result },
-      statuses: {
-        ...previous.statuses,
-        [testCase.id]: status,
-      },
-      isDirty: false,
-    }));
   }
 
-  async function runCase() {
+  function runCase() {
     if (isBusy) return;
-    const caseId = state.activeCaseId;
-    const caseName = activeCase.name;
     const values = { ...state.values };
     const validationError = validateSideValues(values);
     if (validationError) {
@@ -429,50 +323,10 @@ function TriangleLab() {
     }
 
     setInputError(null);
-    setBatchError(null);
-    setState((previous) => ({
-      ...previous,
-      result: null,
-      resultsByCaseId: { ...previous.resultsByCaseId, [caseId]: null },
-      statuses: { ...previous.statuses, [caseId]: "not-run" },
-    }));
-    resetRunState(Atom.Reset);
-    try {
-      const result = await runTriangle(values);
-      setState((previous) => ({
-        ...previous,
-        result,
-        resultsByCaseId: { ...previous.resultsByCaseId, [caseId]: result },
-        statuses: {
-          ...previous.statuses,
-          [caseId]: result.failed ? "failed" : "passed",
-        },
-        history: [
-          ...previous.history,
-          {
-            id: previous.history.length + 1,
-            caseId,
-            name: caseName,
-            result,
-          },
-        ],
-        isDirty: false,
-      }));
-      if (window.matchMedia("(max-width: 1000px)").matches) {
-        window.requestAnimationFrame(() => {
-          const resultPanel = document.getElementById("result-panel");
-          if (!resultPanel) return;
-
-          const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-          resultPanel.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
-        });
-      }
-    } catch {
-      // The run atom carries the failure state for the assertion region.
-    }
+    send(LabEvents.RunCase());
   }
 
-  async function runSelectedCases() {
+  function runSelectedCases() {
     if (isBusy) return;
     const casesToRun = state.cases
       .filter((testCase) => state.selectedCaseIds.includes(testCase.id))
@@ -484,81 +338,13 @@ function TriangleLab() {
 
     const invalidCase = casesToRun.find(({ values }) => validateSideValues(values) !== null);
     if (invalidCase) {
-      setState((previous) => ({
-        ...previous,
-        activeCaseId: invalidCase.testCase.id,
-        values: invalidCase.values,
-        result: previous.resultsByCaseId[invalidCase.testCase.id],
-        isDirty: previous.statuses[invalidCase.testCase.id] === "modified",
-      }));
+      send(LabEvents.SelectCase({ caseId: invalidCase.testCase.id }));
       setInputError(validateSideValues(invalidCase.values));
       return;
     }
 
     setInputError(null);
-    setBatchError(null);
-    setIsBatchRunning(true);
-    setBatchProgress({ current: 1, total: casesToRun.length });
-    resetRunState(Atom.Reset);
-
-    let completed = 0;
-    let failedCaseName: string | null = null;
-    for (const [index, { testCase, values }] of casesToRun.entries()) {
-      setBatchProgress({ current: index + 1, total: casesToRun.length });
-      setState((previous) => ({
-        ...previous,
-        activeCaseId: testCase.id,
-        values,
-        result: null,
-        resultsByCaseId: { ...previous.resultsByCaseId, [testCase.id]: null },
-        statuses: { ...previous.statuses, [testCase.id]: "not-run" },
-        isDirty: false,
-      }));
-      resetRunState(Atom.Reset);
-
-      try {
-        const result = await runTriangle(values);
-        setState((previous) => ({
-          ...previous,
-          result,
-          resultsByCaseId: { ...previous.resultsByCaseId, [testCase.id]: result },
-          statuses: {
-            ...previous.statuses,
-            [testCase.id]: result.failed ? "failed" : "passed",
-          },
-          history: [
-            ...previous.history,
-            {
-              id: previous.history.length + 1,
-              caseId: testCase.id,
-              name: testCase.name,
-              result,
-            },
-          ],
-          isDirty: false,
-        }));
-        completed += 1;
-      } catch {
-        failedCaseName = testCase.name;
-        break;
-      }
-    }
-
-    setIsBatchRunning(false);
-    setBatchProgress(null);
-    if (failedCaseName) {
-      setBatchError("Stopped after " + completed + " of " + casesToRun.length + ". Could not run \"" + failedCaseName + "\". Retry the selected cases.");
-      return;
-    }
-
-    if (window.matchMedia("(max-width: 1000px)").matches) {
-      window.requestAnimationFrame(() => {
-        document.getElementById("run-ledger-title")?.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-          block: "start",
-        });
-      });
-    }
+    send(LabEvents.RunSelectedCases());
   }
 
   const filterOptions = groupedCaseFilterOptions.map(([group, options]) => ({

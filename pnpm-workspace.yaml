@@ -3,3 +3,5 @@ allowBuilds:
   '@astryxdesign/core': true
   esbuild: true
   msgpackr-extract: true
+minimumReleaseAgeExclude:
+  - '@typeonce/effect-machine@0.46.0'

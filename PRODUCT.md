@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-TanStack Start, Effect TS v4, Effect Atom, React Three Fiber, and Drei. Use the sibling `tiara-stack/packages/start-atom` SSR and hydration bridge for Effect Atom. Use a writable Effect Atom action for request, pending, and error state; do not add TanStack Query for the same run lifecycle.
+TanStack Start, Effect TS v4, Effect Atom, `@typeonce/effect-machine`, React Three Fiber, and Drei. Use the sibling `tiara-stack/packages/start-atom` SSR and hydration bridge for Effect Atom. The Effect Machine owns the case workflow and run lifecycle; its Atom bridge feeds React. Do not add TanStack Query for the same state.
 
 ## Users
 
@@ -40,7 +40,7 @@ The demo is tied to the software testing materials in `/opt/data/testing_hw`. Le
 - The workspace shows three bounded integer inputs, a triangle diagram, and expected and observed results.
 - Expected-result guidance links to the Lesson 3 PDF containing the Triangle problem.
 - Runs are recorded in a session-only history shown after the first run.
-- The requested stack is TanStack Start, Effect TS v4, Effect Atom, React Three Fiber, and Drei. Use the sibling `tiara-stack/packages/start-atom` SSR and hydration bridge for Effect Atom. Effect Atom owns the case catalog, filter selection, and run lifecycle.
+- The requested stack is TanStack Start, Effect TS v4, Effect Atom, `@typeonce/effect-machine`, React Three Fiber, and Drei. Use the sibling `tiara-stack/packages/start-atom` SSR and hydration bridge for Effect Atom. The machine owns case data, filters, and run transitions; its Atom bridge exposes state to React.
 - The triangle diagram is rendered through a React Three Fiber canvas with a static SVG fallback for server render and unsupported WebGL.
 - Valid triangles are drawn with proportional side lengths and fitted uniformly to the diagram area. Non-triangle triples show the three measured sides separately without closing them into a triangle.
 - Keep the lab surface to the case list, side inputs, triangle diagram, results, and optional run history.
