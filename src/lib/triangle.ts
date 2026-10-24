@@ -6,6 +6,32 @@ export type SideValues = {
   c: string;
 };
 
+export type SideInputError = {
+  side: keyof SideValues;
+  message: string;
+};
+
+export const SideInputErrorSchema = Schema.Struct({
+  side: Schema.Literals(["a", "b", "c"]),
+  message: Schema.String,
+});
+
+export function validateSideValues(values: SideValues): SideInputError | null {
+  for (const side of ["a", "b", "c"] as const) {
+    const value = values[side].trim();
+    if (!/^\d+$/.test(value)) {
+      return { side, message: `Side ${side} must be a whole number from 1 to 200.` };
+    }
+
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 200) {
+      return { side, message: `Side ${side} must be a whole number from 1 to 200.` };
+    }
+  }
+
+  return null;
+}
+
 export type CaseId = string;
 export type CaseSource = "example:defect" | "example:success" | "custom";
 export type TriangleOutput =

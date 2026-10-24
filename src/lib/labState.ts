@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import {
   labCases,
   verifiedCases,
+  SideInputErrorSchema,
   SideValuesSchema,
   TriangleCaseSchema,
   TriangleRunSchema,
@@ -57,6 +58,21 @@ export const LabStateFields = {
   batchError: Schema.NullOr(Schema.String),
   runError: Schema.NullOr(Schema.String),
   lastRunMode: Schema.NullOr(Schema.Literals(["single", "batch"])),
+  inputError: Schema.NullOr(SideInputErrorSchema),
+  customCaseDraft: Schema.Struct({
+    name: Schema.String,
+    description: Schema.String,
+    tags: Schema.String,
+    values: SideValuesSchema,
+    editingCaseId: Schema.NullOr(Schema.String),
+  }),
+  customCaseNameError: Schema.NullOr(Schema.String),
+  customCaseInputError: Schema.NullOr(SideInputErrorSchema),
+  isCustomCaseDialogOpen: Schema.Boolean,
+  isMobileCaseLibraryOpen: Schema.Boolean,
+  isCaseToolsOpen: Schema.Boolean,
+  isHistoryDrawerOpen: Schema.Boolean,
+  isDeleteDialogOpen: Schema.Boolean,
 } as const;
 
 export const LabStateSchema = Schema.Struct(LabStateFields);
@@ -95,6 +111,21 @@ export function createInitialLabState(): LabState {
     batchError: null,
     runError: null,
     lastRunMode: null,
+    inputError: null,
+    customCaseDraft: {
+      name: "",
+      description: "",
+      tags: "",
+      values: { a: "", b: "", c: "" },
+      editingCaseId: null,
+    },
+    customCaseNameError: null,
+    customCaseInputError: null,
+    isCustomCaseDialogOpen: false,
+    isMobileCaseLibraryOpen: false,
+    isCaseToolsOpen: false,
+    isHistoryDrawerOpen: false,
+    isDeleteDialogOpen: false,
   };
 }
 

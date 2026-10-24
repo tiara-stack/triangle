@@ -3,6 +3,7 @@ import { AsyncResult, Atom } from "effect/reactivity";
 import { FetchHttpClient, HttpClient } from "effect/http";
 import { Machine } from "@typeonce/effect-machine";
 import { AtomMachine } from "@typeonce/effect-machine/reactivity";
+import { produce, type Draft } from "immer";
 import {
   type CaseFilterOption,
   type LabState,
@@ -13,8 +14,10 @@ import {
   makeCaseFilterOptions,
 } from "./labState";
 import {
+  SideInputErrorSchema,
   SideValuesSchema,
   TriangleCaseSchema,
+  validateSideValues,
   type SideValues,
   type CaseId,
   type TriangleCase,
@@ -58,13 +61,30 @@ export const LabEvents = Machine.eventsFromSchemas(
     UpdateCaseFilters: { filters: Schema.Array(Schema.String) },
     SaveCustomCase: { testCase: TriangleCaseSchema },
     DeleteCustomCase: { caseId: Schema.String },
+    OpenNewCustomCaseDialog: {},
+    OpenEditCustomCaseDialog: { caseId: Schema.String },
+    CloseCustomCaseDialog: {},
+    CustomCaseNameChanged: { name: Schema.String },
+    CustomCaseNameRejected: { message: Schema.String },
+    CustomCaseDescriptionChanged: { description: Schema.String },
+    CustomCaseTagsChanged: { tags: Schema.String },
+    CustomCaseSideChanged: {
+      side: Schema.Literals(["a", "b", "c"]),
+      value: Schema.String,
+    },
+    CustomCaseInputRejected: { error: SideInputErrorSchema },
+    SideInputRejected: { error: SideInputErrorSchema },
+    MobileCaseLibraryVisibilityChanged: { isOpen: Schema.Boolean },
+    CaseToolsVisibilityChanged: { isOpen: Schema.Boolean },
+    HistoryDrawerVisibilityChanged: { isOpen: Schema.Boolean },
+    OpenDeleteConfirmation: {},
+    CloseDeleteConfirmation: {},
     ToggleCaseForBatch: { caseId: Schema.String },
     UpdateSide: {
       side: Schema.Literals(["a", "b", "c"]),
       value: Schema.String,
     },
     ResetCase: {},
-    ClearRunError: {},
     RunCase: {},
     RunSelectedCases: {},
   }),
@@ -109,26 +129,25 @@ function batchStream(
   );
 }
 
-function withClearedRunState(lab: LabState): LabState {
-  return {
-    ...lab,
-    batchProgress: null,
-    batchError: null,
-    runError: null,
-    lastRunMode: null,
-  };
+function clearRunState(draft: Draft<LabState>): void {
+  draft.batchProgress = null;
+  draft.batchError = null;
+  draft.runError = null;
+  draft.lastRunMode = null;
 }
 
 function selectCase(lab: LabState, caseId: CaseId): LabState {
   const testCase = lab.cases.find((candidate) => candidate.id === caseId);
-  if (!testCase) return withClearedRunState(lab);
-  return {
-    ...withClearedRunState(lab),
-    activeCaseId: testCase.id,
-    values: lab.valuesByCaseId[testCase.id],
-    result: lab.resultsByCaseId[testCase.id],
-    isDirty: lab.statuses[testCase.id] === "modified",
-  };
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.inputError = null;
+    if (!testCase) return;
+
+    draft.activeCaseId = testCase.id;
+    draft.values = { ...lab.valuesByCaseId[testCase.id] };
+    draft.result = lab.resultsByCaseId[testCase.id];
+    draft.isDirty = lab.statuses[testCase.id] === "modified";
+  });
 }
 
 function updateFilters(lab: LabState, filters: ReadonlyArray<string>): LabState {
@@ -137,22 +156,22 @@ function updateFilters(lab: LabState, filters: ReadonlyArray<string>): LabState 
   const selectedCaseIds = lab.selectedCaseIds.filter((caseId) => visibleCaseIds.has(caseId));
   const activeCaseIsVisible = matchingCases.some((testCase) => testCase.id === lab.activeCaseId);
   const nextCase = activeCaseIsVisible ? undefined : matchingCases[0];
-  const cleared = withClearedRunState(lab);
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.inputError = null;
+    draft.caseFilters = [...filters];
+    draft.selectedCaseIds = selectedCaseIds;
+    if (!nextCase) return;
 
-  if (!nextCase) return { ...cleared, caseFilters: filters, selectedCaseIds };
-
-  return {
-    ...cleared,
-    caseFilters: filters,
-    selectedCaseIds,
-    activeCaseId: nextCase.id,
-    values: lab.valuesByCaseId[nextCase.id],
-    result: lab.resultsByCaseId[nextCase.id],
-    isDirty: lab.statuses[nextCase.id] === "modified",
-  };
+    draft.activeCaseId = nextCase.id;
+    draft.values = { ...lab.valuesByCaseId[nextCase.id] };
+    draft.result = lab.resultsByCaseId[nextCase.id];
+    draft.isDirty = lab.statuses[nextCase.id] === "modified";
+  });
 }
 
 function saveCustomCase(lab: LabState, testCase: TriangleCase): LabState {
+  const draftCase = { ...testCase, tags: [...testCase.tags] };
   const existingCase = lab.cases.find((candidate) => candidate.id === testCase.id);
   if (existingCase?.source === "custom") {
     const previousValues = lab.valuesByCaseId[testCase.id];
@@ -162,89 +181,143 @@ function saveCustomCase(lab: LabState, testCase: TriangleCase): LabState {
       testCase.values.c !== previousValues.c;
     const result = valuesChanged ? null : lab.resultsByCaseId[testCase.id];
 
-    return {
-      ...withClearedRunState(lab),
-      cases: lab.cases.map((candidate) => candidate.id === testCase.id ? testCase : candidate),
-      caseFilters: ["custom"],
-      activeCaseId: testCase.id,
-      values: testCase.values,
-      valuesByCaseId: { ...lab.valuesByCaseId, [testCase.id]: testCase.values },
-      result,
-      resultsByCaseId: { ...lab.resultsByCaseId, [testCase.id]: result },
-      statuses: {
-        ...lab.statuses,
-        [testCase.id]: result ? (result.failed ? "failed" : "passed") : "not-run",
-      },
-      isDirty: false,
-    };
+    return produce(lab, (draft) => {
+      clearRunState(draft);
+      draft.cases = draft.cases.map((candidate) => candidate.id === testCase.id ? draftCase : candidate);
+      draft.caseFilters = ["custom"];
+      draft.activeCaseId = testCase.id;
+      draft.values = { ...testCase.values };
+      draft.valuesByCaseId[testCase.id] = { ...testCase.values };
+      draft.result = result;
+      draft.resultsByCaseId[testCase.id] = result;
+      draft.statuses[testCase.id] = result ? (result.failed ? "failed" : "passed") : "not-run";
+      draft.isDirty = false;
+      draft.inputError = null;
+      draft.isCustomCaseDialogOpen = false;
+      draft.customCaseNameError = null;
+      draft.customCaseInputError = null;
+    });
   }
 
-  return {
-    ...withClearedRunState(lab),
-    cases: [...lab.cases, testCase],
-    caseFilters: ["custom"],
-    selectedCaseIds: [],
-    activeCaseId: testCase.id,
-    values: testCase.values,
-    valuesByCaseId: { ...lab.valuesByCaseId, [testCase.id]: testCase.values },
-    result: null,
-    resultsByCaseId: { ...lab.resultsByCaseId, [testCase.id]: null },
-    statuses: { ...lab.statuses, [testCase.id]: "not-run" },
-    isDirty: false,
-  };
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.cases.push(draftCase);
+    draft.caseFilters = ["custom"];
+    draft.selectedCaseIds = [];
+    draft.activeCaseId = testCase.id;
+    draft.values = { ...testCase.values };
+    draft.valuesByCaseId[testCase.id] = { ...testCase.values };
+    draft.result = null;
+    draft.resultsByCaseId[testCase.id] = null;
+    draft.statuses[testCase.id] = "not-run";
+    draft.isDirty = false;
+    draft.inputError = null;
+    draft.isCustomCaseDialogOpen = false;
+    draft.customCaseNameError = null;
+    draft.customCaseInputError = null;
+  });
 }
 
 function deleteCustomCase(lab: LabState, caseId: CaseId): LabState {
   const activeCase = lab.cases.find((testCase) => testCase.id === caseId);
-  if (activeCase?.source !== "custom") return withClearedRunState(lab);
+  if (activeCase?.source !== "custom") {
+    return produce(lab, (draft) => {
+      clearRunState(draft);
+      draft.isDeleteDialogOpen = false;
+    });
+  }
 
-  const cases = lab.cases.filter((testCase) => testCase.id !== caseId);
-  const valuesByCaseId = { ...lab.valuesByCaseId };
-  const resultsByCaseId = { ...lab.resultsByCaseId };
-  const statuses = { ...lab.statuses };
-  delete valuesByCaseId[caseId];
-  delete resultsByCaseId[caseId];
-  delete statuses[caseId];
-  const nextCase = cases.find((testCase) => testCase.source !== "custom")!;
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.cases = draft.cases.filter((testCase) => testCase.id !== caseId);
+    delete draft.valuesByCaseId[caseId];
+    delete draft.resultsByCaseId[caseId];
+    delete draft.statuses[caseId];
+    const nextCase = draft.cases.find((testCase) => testCase.source !== "custom")!;
+    draft.caseFilters = [];
+    draft.selectedCaseIds = draft.selectedCaseIds.filter((selectedId) => selectedId !== caseId);
+    draft.activeCaseId = nextCase.id;
+    draft.values = { ...draft.valuesByCaseId[nextCase.id] };
+    draft.result = draft.resultsByCaseId[nextCase.id];
+    draft.isDirty = draft.statuses[nextCase.id] === "modified";
+    draft.inputError = null;
+    draft.isDeleteDialogOpen = false;
+  });
+}
 
-  return {
-    ...withClearedRunState(lab),
-    cases,
-    caseFilters: [],
-    selectedCaseIds: lab.selectedCaseIds.filter((selectedId) => selectedId !== caseId),
-    activeCaseId: nextCase.id,
-    values: valuesByCaseId[nextCase.id],
-    valuesByCaseId,
-    result: resultsByCaseId[nextCase.id],
-    resultsByCaseId,
-    statuses,
-    isDirty: statuses[nextCase.id] === "modified",
-  };
+function openNewCustomCaseDialog(lab: LabState): LabState {
+  const customCount = lab.cases.filter((testCase) => testCase.source === "custom").length;
+  const values = { ...lab.values };
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.inputError = null;
+    draft.customCaseDraft = {
+      name: `Custom case ${customCount + 1}`,
+      description: "",
+      tags: "",
+      values,
+      editingCaseId: null,
+    };
+    draft.customCaseNameError = null;
+    draft.customCaseInputError = validateSideValues(values);
+    draft.isCustomCaseDialogOpen = true;
+  });
+}
+
+function openEditCustomCaseDialog(lab: LabState, caseId: CaseId): LabState {
+  const testCase = lab.cases.find((candidate) => candidate.id === caseId);
+  if (testCase?.source !== "custom") return lab;
+  const values = { ...lab.valuesByCaseId[caseId] };
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.inputError = null;
+    draft.customCaseDraft = {
+      name: testCase.name,
+      description: testCase.description ?? "",
+      tags: testCase.tags.join(", "),
+      values,
+      editingCaseId: caseId,
+    };
+    draft.customCaseNameError = null;
+    draft.customCaseInputError = validateSideValues(values);
+    draft.isCustomCaseDialogOpen = true;
+  });
+}
+
+function changeCustomCaseSide(
+  lab: LabState,
+  side: keyof SideValues,
+  value: string,
+): LabState {
+  return produce(lab, (draft) => {
+    draft.customCaseDraft.values[side] = value;
+    draft.customCaseInputError = validateSideValues(draft.customCaseDraft.values);
+  });
 }
 
 function toggleCaseForBatch(lab: LabState, caseId: CaseId): LabState {
-  return {
-    ...withClearedRunState(lab),
-    selectedCaseIds: lab.selectedCaseIds.includes(caseId)
-      ? lab.selectedCaseIds.filter((selectedId) => selectedId !== caseId)
-      : [...lab.selectedCaseIds, caseId],
-  };
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    const index = draft.selectedCaseIds.indexOf(caseId);
+    if (index >= 0) draft.selectedCaseIds.splice(index, 1);
+    else draft.selectedCaseIds.push(caseId);
+  });
 }
 
 function updateSide(lab: LabState, side: keyof SideValues, value: string): LabState {
   const activeCase = lab.cases.find((testCase) => testCase.id === lab.activeCaseId);
-  if (activeCase?.source !== "custom") return withClearedRunState(lab);
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.inputError = null;
+    if (activeCase?.source !== "custom") return;
 
-  const values = { ...lab.values, [side]: value };
-  return {
-    ...withClearedRunState(lab),
-    values,
-    valuesByCaseId: { ...lab.valuesByCaseId, [lab.activeCaseId]: values },
-    result: null,
-    resultsByCaseId: { ...lab.resultsByCaseId, [lab.activeCaseId]: null },
-    statuses: { ...lab.statuses, [lab.activeCaseId]: "modified" },
-    isDirty: true,
-  };
+    draft.values[side] = value;
+    draft.valuesByCaseId[lab.activeCaseId] = { ...draft.values };
+    draft.result = null;
+    draft.resultsByCaseId[lab.activeCaseId] = null;
+    draft.statuses[lab.activeCaseId] = "modified";
+    draft.isDirty = true;
+  });
 }
 
 function resetCase(lab: LabState): LabState {
@@ -257,18 +330,16 @@ function resetCase(lab: LabState): LabState {
   );
   const result = priorRun?.result ?? null;
 
-  return {
-    ...withClearedRunState(lab),
-    values: testCase.values,
-    valuesByCaseId: { ...lab.valuesByCaseId, [testCase.id]: testCase.values },
-    result,
-    resultsByCaseId: { ...lab.resultsByCaseId, [testCase.id]: result },
-    statuses: {
-      ...lab.statuses,
-      [testCase.id]: priorRun ? (priorRun.result.failed ? "failed" : "passed") : "not-run",
-    },
-    isDirty: false,
-  };
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.values = { ...testCase.values };
+    draft.valuesByCaseId[testCase.id] = { ...testCase.values };
+    draft.result = result;
+    draft.resultsByCaseId[testCase.id] = result;
+    draft.statuses[testCase.id] = priorRun ? (priorRun.result.failed ? "failed" : "passed") : "not-run";
+    draft.isDirty = false;
+    draft.inputError = null;
+  });
 }
 
 function selectedBatchCases(lab: LabState): ReadonlyArray<BatchCase> {
@@ -276,36 +347,122 @@ function selectedBatchCases(lab: LabState): ReadonlyArray<BatchCase> {
   return selected.map((testCase, index) => ({
     caseId: testCase.id,
     name: testCase.name,
-    values: lab.valuesByCaseId[testCase.id],
+    values: { ...lab.valuesByCaseId[testCase.id] },
     current: index + 1,
     total: selected.length,
   }));
 }
 
 function recordRun(
-  lab: LabState,
+  draft: Draft<LabState>,
   caseId: CaseId,
   name: string,
   result: TriangleRun,
   mode: "single" | "batch",
-): LabState {
-  return {
-    ...lab,
-    result,
-    resultsByCaseId: { ...lab.resultsByCaseId, [caseId]: result },
-    statuses: { ...lab.statuses, [caseId]: result.failed ? "failed" : "passed" },
-    history: [
-      ...lab.history,
-      { id: lab.history.length + 1, caseId, name, result },
-    ],
-    isDirty: false,
-    runError: null,
-    lastRunMode: mode,
-  };
+): void {
+  draft.result = result;
+  draft.resultsByCaseId[caseId] = result;
+  draft.statuses[caseId] = result.failed ? "failed" : "passed";
+  draft.history.push({ id: draft.history.length + 1, caseId, name, result });
+  draft.isDirty = false;
+  draft.runError = null;
+  draft.lastRunMode = mode;
 }
 
 type RootContext = { readonly root: LabState };
 type RootEventContext<Event> = RootContext & { readonly event: Event };
+
+const presentationTransitions = {
+  OpenNewCustomCaseDialog: {
+    update: "root" as const,
+    data: ({ root }: RootContext) => openNewCustomCaseDialog(root),
+  },
+  OpenEditCustomCaseDialog: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly caseId: CaseId }>) =>
+      openEditCustomCaseDialog(root, event.caseId),
+  },
+  CloseCustomCaseDialog: {
+    update: "root" as const,
+    data: ({ root }: RootContext) => produce(root, (draft) => {
+      draft.isCustomCaseDialogOpen = false;
+    }),
+  },
+  CustomCaseNameChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly name: string }>) => produce(root, (draft) => {
+      draft.customCaseDraft.name = event.name;
+      if (event.name.trim()) draft.customCaseNameError = null;
+    }),
+  },
+  CustomCaseNameRejected: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly message: string }>) => produce(root, (draft) => {
+      draft.customCaseNameError = event.message;
+    }),
+  },
+  CustomCaseDescriptionChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly description: string }>) => produce(root, (draft) => {
+      draft.customCaseDraft.description = event.description;
+    }),
+  },
+  CustomCaseTagsChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly tags: string }>) => produce(root, (draft) => {
+      draft.customCaseDraft.tags = event.tags;
+    }),
+  },
+  CustomCaseSideChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly side: keyof SideValues; readonly value: string }>) =>
+      changeCustomCaseSide(root, event.side, event.value),
+  },
+  CustomCaseInputRejected: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly error: NonNullable<LabState["customCaseInputError"]> }>) =>
+      produce(root, (draft) => {
+        draft.customCaseInputError = event.error;
+      }),
+  },
+  SideInputRejected: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly error: NonNullable<LabState["inputError"]> }>) =>
+      produce(root, (draft) => {
+        draft.inputError = event.error;
+      }),
+  },
+  MobileCaseLibraryVisibilityChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly isOpen: boolean }>) => produce(root, (draft) => {
+      draft.isMobileCaseLibraryOpen = event.isOpen;
+    }),
+  },
+  CaseToolsVisibilityChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly isOpen: boolean }>) => produce(root, (draft) => {
+      draft.isCaseToolsOpen = event.isOpen;
+    }),
+  },
+  HistoryDrawerVisibilityChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly isOpen: boolean }>) => produce(root, (draft) => {
+      draft.isHistoryDrawerOpen = event.isOpen;
+    }),
+  },
+  OpenDeleteConfirmation: {
+    update: "root" as const,
+    data: ({ root }: RootContext) => produce(root, (draft) => {
+      draft.isDeleteDialogOpen = true;
+    }),
+  },
+  CloseDeleteConfirmation: {
+    update: "root" as const,
+    data: ({ root }: RootContext) => produce(root, (draft) => {
+      draft.isDeleteDialogOpen = false;
+    }),
+  },
+};
 
 const syncTransitions = {
   SelectCase: {
@@ -364,14 +521,6 @@ const syncTransitions = {
       update: resetCase(root),
     }),
   },
-  ClearRunError: {
-    target: "Ready" as const,
-    update: "root" as const,
-    data: ({ root }: RootContext) => ({
-      target: undefined,
-      update: withClearedRunState(root),
-    }),
-  },
 };
 
 const runTransitions = {
@@ -380,13 +529,14 @@ const runTransitions = {
     update: "root" as const,
     data: ({ root }: RootContext) => {
       const activeCase = root.cases.find((testCase) => testCase.id === root.activeCaseId)!;
-      const update: LabState = {
-        ...withClearedRunState(root),
-        result: null,
-        resultsByCaseId: { ...root.resultsByCaseId, [activeCase.id]: null },
-        statuses: { ...root.statuses, [activeCase.id]: "not-run" },
-        lastRunMode: "single",
-      };
+      const update = produce(root, (draft) => {
+        clearRunState(draft);
+        draft.inputError = null;
+        draft.result = null;
+        draft.resultsByCaseId[activeCase.id] = null;
+        draft.statuses[activeCase.id] = "not-run";
+        draft.lastRunMode = "single";
+      });
       return {
         target: {
           caseId: activeCase.id,
@@ -404,16 +554,17 @@ const runTransitions = {
     data: ({ root }: RootContext) => {
       const cases = selectedBatchCases(root);
       const firstCase = cases[0];
-      const update: LabState = {
-        ...withClearedRunState(root),
-        activeCaseId: firstCase.caseId,
-        values: firstCase.values,
-        result: null,
-        resultsByCaseId: { ...root.resultsByCaseId, [firstCase.caseId]: null },
-        statuses: { ...root.statuses, [firstCase.caseId]: "not-run" },
-        batchProgress: { current: 1, total: cases.length },
-        lastRunMode: "batch",
-      };
+      const update = produce(root, (draft) => {
+        clearRunState(draft);
+        draft.inputError = null;
+        draft.activeCaseId = firstCase.caseId;
+        draft.values = { ...firstCase.values };
+        draft.result = null;
+        draft.resultsByCaseId[firstCase.caseId] = null;
+        draft.statuses[firstCase.caseId] = "not-run";
+        draft.batchProgress = { current: 1, total: cases.length };
+        draft.lastRunMode = "batch";
+      });
       return {
         target: { cases },
         update,
@@ -424,6 +575,7 @@ const runTransitions = {
 
 const startRunEvent = {
   ...syncTransitions,
+  ...presentationTransitions,
   ...runTransitions,
 };
 
@@ -443,7 +595,7 @@ export const LabMachine = Machine.make({
   states: {
     Ready: { on: startRunEvent },
     RunningCase: {
-      on: syncTransitions,
+      on: { ...syncTransitions, ...presentationTransitions },
       invoke: {
         src: "runTriangle",
         input: ({ state }) => state.values,
@@ -452,7 +604,9 @@ export const LabMachine = Machine.make({
           update: "root",
           data: ({ root, state, output }) => ({
             target: undefined,
-            update: recordRun(root, state.caseId, state.name, output, "single"),
+            update: produce(root, (draft) => {
+              recordRun(draft, state.caseId, state.name, output, "single");
+            }),
           }),
         },
         onFailure: {
@@ -462,14 +616,17 @@ export const LabMachine = Machine.make({
             const message = String(error);
             return {
               target: undefined,
-              update: { ...withClearedRunState(root), runError: message },
+              update: produce(root, (draft) => {
+                clearRunState(draft);
+                draft.runError = message;
+              }),
             };
           },
         },
       },
     },
     RunningBatch: {
-      on: syncTransitions,
+      on: { ...syncTransitions, ...presentationTransitions },
       invoke: {
         src: "runBatch",
         input: ({ state }) => state.cases,
@@ -478,51 +635,47 @@ export const LabMachine = Machine.make({
           data: ({ root, element }) => {
             if (element._tag === "Started") {
               const { batchCase } = element;
-              const update: LabState = {
-                ...root,
-                activeCaseId: batchCase.caseId,
-                values: batchCase.values,
-                result: null,
-                resultsByCaseId: { ...root.resultsByCaseId, [batchCase.caseId]: null },
-                statuses: { ...root.statuses, [batchCase.caseId]: "not-run" },
-                batchProgress: { current: batchCase.current, total: batchCase.total },
-                batchError: null,
-                runError: null,
-                lastRunMode: null,
-              };
-              return update;
+              return produce(root, (draft) => {
+                draft.activeCaseId = batchCase.caseId;
+                draft.values = { ...batchCase.values };
+                draft.result = null;
+                draft.resultsByCaseId[batchCase.caseId] = null;
+                draft.statuses[batchCase.caseId] = "not-run";
+                draft.batchProgress = { current: batchCase.current, total: batchCase.total };
+                draft.batchError = null;
+                draft.runError = null;
+                draft.lastRunMode = null;
+              });
             }
 
-            const update: LabState = {
-              ...recordRun(
-                root,
+            return produce(root, (draft) => {
+              recordRun(
+                draft,
                 element.batchCase.caseId,
                 element.batchCase.name,
                 element.result,
                 "batch",
-              ),
-              batchProgress: {
+              );
+              draft.batchProgress = {
                 current: element.batchCase.current,
                 total: element.batchCase.total,
-              },
-              batchError: null,
-            };
-            return update;
+              };
+              draft.batchError = null;
+            });
           },
         },
         onDone: {
           target: "Ready",
           update: "root",
-          data: ({ root }) => {
-            const update: LabState = {
-              ...root,
-              batchProgress: null,
-              batchError: null,
-              runError: null,
-              lastRunMode: "batch",
-            };
-            return { target: undefined, update };
-          },
+          data: ({ root }) => ({
+            target: undefined,
+            update: produce(root, (draft) => {
+              draft.batchProgress = null;
+              draft.batchError = null;
+              draft.runError = null;
+              draft.lastRunMode = "batch";
+            }),
+          }),
         },
         onFailure: {
           target: "RunFailed",
@@ -531,18 +684,17 @@ export const LabMachine = Machine.make({
             const batchError =
               "Stopped after " + error.completed + " of " + error.total +
               '. Could not run "' + error.caseName + '". Retry the selected cases.';
-            const update: LabState = {
-              ...root,
-              activeCaseId: error.caseId,
-              values: root.valuesByCaseId[error.caseId] ?? root.values,
-              result: null,
-              resultsByCaseId: { ...root.resultsByCaseId, [error.caseId]: null },
-              statuses: { ...root.statuses, [error.caseId]: "not-run" },
-              batchProgress: null,
-              batchError,
-              runError: error.reason,
-              lastRunMode: "batch",
-            };
+            const update = produce(root, (draft) => {
+              draft.activeCaseId = error.caseId;
+              draft.values = { ...(root.valuesByCaseId[error.caseId] ?? root.values) };
+              draft.result = null;
+              draft.resultsByCaseId[error.caseId] = null;
+              draft.statuses[error.caseId] = "not-run";
+              draft.batchProgress = null;
+              draft.batchError = batchError;
+              draft.runError = error.reason;
+              draft.lastRunMode = "batch";
+            });
             return {
               target: undefined,
               update,

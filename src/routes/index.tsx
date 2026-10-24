@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { createRef, useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
+import { createRef, useEffect, useRef, type FormEvent, type RefObject } from "react";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { Button } from "@astryxdesign/core/Button";
@@ -44,14 +44,10 @@ import {
   type SideValues,
   type TriangleCase,
   type TriangleOutput,
+  validateSideValues,
 } from "../lib/triangle";
 
 export const Route = createFileRoute("/")({ component: TriangleLab });
-
-type InputError = {
-  side: keyof SideValues;
-  message: string;
-};
 
 let customCaseIdSequence = 0;
 
@@ -66,22 +62,6 @@ function createSessionCaseId(cases: ReadonlyArray<TriangleCase>): CaseId {
 
 function displayTriangleOutput(output: TriangleOutput): string {
   return output === "NotATriangle" ? "Not a triangle" : output;
-}
-
-function validateSideValues(values: SideValues): InputError | null {
-  for (const side of ["a", "b", "c"] as const) {
-    const value = values[side].trim();
-    if (!/^\d+$/.test(value)) {
-      return { side, message: `Side ${side} must be a whole number from 1 to 200.` };
-    }
-
-    const parsed = Number(value);
-    if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 200) {
-      return { side, message: `Side ${side} must be a whole number from 1 to 200.` };
-    }
-  }
-
-  return null;
 }
 
 function parseCustomTags(value: string): ReadonlyArray<string> {
@@ -132,24 +112,13 @@ function TriangleLab() {
   const isNarrow = useMediaQuery("(max-width: 1000px)");
   const caseSelectorRefs = useRef(new Map<CaseId, RefObject<HTMLButtonElement | null>>());
   const previousHistoryLength = useRef(state.history.length);
-  const [inputError, setInputError] = useState<InputError | null>(null);
-  const [customCaseName, setCustomCaseName] = useState("");
-  const [customCaseNameError, setCustomCaseNameError] = useState<string | null>(null);
-  const [customCaseDescription, setCustomCaseDescription] = useState("");
-  const [customCaseTags, setCustomCaseTags] = useState("");
-  const [customCaseValues, setCustomCaseValues] = useState<SideValues>({ a: "", b: "", c: "" });
-  const [customCaseInputError, setCustomCaseInputError] = useState<InputError | null>(null);
-  const [editingCustomCaseId, setEditingCustomCaseId] = useState<CaseId | null>(null);
-  const [isCustomCaseDialogOpen, setIsCustomCaseDialogOpen] = useState(false);
-  const [isMobileCaseLibraryOpen, setIsMobileCaseLibraryOpen] = useState(false);
-  const [isCaseToolsOpen, setIsCaseToolsOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const visibleCases = useAtomValue(visibleCasesAtom);
   const caseFilterOptions = useAtomValue(caseFilterOptionsAtom);
   const groupedCaseFilterOptions = groupFilterOptions(caseFilterOptions);
   const isRunning = useAtomValue(isRunningCaseAtom);
   const isBatchRunning = useAtomValue(isRunningBatchAtom);
   const isBusy = useAtomValue(isBusyAtom);
+  const customCaseDraft = state.customCaseDraft;
   const batchProgress = state.batchProgress;
   const batchError = state.batchError;
   const hasRunError = state.runError !== null;
@@ -202,86 +171,60 @@ function TriangleLab() {
 
   function selectCase(testCase: TriangleCase) {
     send(LabEvents.SelectCase({ caseId: testCase.id }));
-    setInputError(null);
     if (isNarrow) {
-      setIsMobileCaseLibraryOpen(false);
-      setIsCaseToolsOpen(false);
+      send(LabEvents.MobileCaseLibraryVisibilityChanged({ isOpen: false }));
+      send(LabEvents.CaseToolsVisibilityChanged({ isOpen: false }));
     }
   }
 
   function updateCaseFilters(nextFilters: ReadonlyArray<string>) {
     send(LabEvents.UpdateCaseFilters({ filters: [...nextFilters] }));
-    setInputError(null);
   }
 
   function openCustomCaseDialog() {
-    send(LabEvents.ClearRunError());
-    setInputError(null);
-    setEditingCustomCaseId(null);
-    setCustomCaseNameError(null);
-    const customCount = state.cases.filter((testCase) => testCase.source === "custom").length;
-    setCustomCaseName(`Custom case ${customCount + 1}`);
-    setCustomCaseDescription("");
-    setCustomCaseTags("");
-    setCustomCaseValues({ ...state.values });
-    setCustomCaseInputError(validateSideValues(state.values));
-    setIsCustomCaseDialogOpen(true);
+    send(LabEvents.OpenNewCustomCaseDialog());
   }
 
   function openEditCustomCaseDialog(testCase: TriangleCase) {
     if (testCase.source !== "custom") return;
-    send(LabEvents.ClearRunError());
-    setInputError(null);
-    setEditingCustomCaseId(testCase.id);
-    setCustomCaseNameError(null);
-    setCustomCaseName(testCase.name);
-    setCustomCaseDescription(testCase.description ?? "");
-    setCustomCaseTags(testCase.tags.join(", "));
-    const values = { ...state.valuesByCaseId[testCase.id] };
-    setCustomCaseValues(values);
-    setCustomCaseInputError(validateSideValues(values));
-    setIsCustomCaseDialogOpen(true);
+    send(LabEvents.OpenEditCustomCaseDialog({ caseId: testCase.id }));
   }
 
   function updateCustomCaseSide(side: keyof SideValues, value: string) {
-    const values = { ...customCaseValues, [side]: value };
-    setCustomCaseValues(values);
-    setCustomCaseInputError(validateSideValues(values));
+    send(LabEvents.CustomCaseSideChanged({ side, value }));
   }
 
   function saveCustomCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const name = customCaseName.trim();
+    const name = customCaseDraft.name.trim();
     if (!name) {
-      setCustomCaseNameError("Enter a name for this case.");
+      send(LabEvents.CustomCaseNameRejected({ message: "Enter a name for this case." }));
       return;
     }
-    setCustomCaseNameError(null);
 
-    const sideError = validateSideValues(customCaseValues);
+    const sideError = validateSideValues(customCaseDraft.values);
     if (sideError) {
-      setCustomCaseInputError(sideError);
+      send(LabEvents.CustomCaseInputRejected({ error: sideError }));
       return;
     }
 
-    const description = customCaseDescription.trim();
-    const tags = parseCustomTags(customCaseTags);
-    const values = { ...customCaseValues };
-    const id = editingCustomCaseId ?? createSessionCaseId(state.cases);
+    const description = customCaseDraft.description.trim();
+    const tags = parseCustomTags(customCaseDraft.tags);
+    const values = { ...customCaseDraft.values };
+    const id = customCaseDraft.editingCaseId ?? createSessionCaseId(state.cases);
     const testCase: TriangleCase = {
       id,
       name,
-      description: description || undefined,
+      ...(description ? { description } : {}),
       source: "custom",
       tags,
       values,
     };
 
     send(LabEvents.SaveCustomCase({ testCase }));
-    setIsCustomCaseDialogOpen(false);
     if (isNarrow) {
-      setIsMobileCaseLibraryOpen(false);
-      setIsCaseToolsOpen(false);
+      send(LabEvents.MobileCaseLibraryVisibilityChanged({ isOpen: false }));
+      send(LabEvents.CaseToolsVisibilityChanged({ isOpen: false }));
     }
   }
 
@@ -289,12 +232,10 @@ function TriangleLab() {
     if (activeCase.source !== "custom") return;
 
     send(LabEvents.DeleteCustomCase({ caseId: activeCase.id }));
-    setInputError(null);
-    setIsDeleteDialogOpen(false);
     caseSelectorRefs.current.delete(activeCase.id);
     if (isNarrow) {
-      setIsMobileCaseLibraryOpen(false);
-      setIsCaseToolsOpen(false);
+      send(LabEvents.MobileCaseLibraryVisibilityChanged({ isOpen: false }));
+      send(LabEvents.CaseToolsVisibilityChanged({ isOpen: false }));
     }
   }
 
@@ -305,12 +246,10 @@ function TriangleLab() {
   function updateSide(side: keyof SideValues, value: string) {
     if (activeCase.source !== "custom") return;
     send(LabEvents.UpdateSide({ side, value }));
-    setInputError(null);
   }
 
   function resetCase() {
     send(LabEvents.ResetCase());
-    setInputError(null);
   }
 
   function runCase() {
@@ -318,11 +257,10 @@ function TriangleLab() {
     const values = { ...state.values };
     const validationError = validateSideValues(values);
     if (validationError) {
-      setInputError(validationError);
+      send(LabEvents.SideInputRejected({ error: validationError }));
       return;
     }
 
-    setInputError(null);
     send(LabEvents.RunCase());
   }
 
@@ -336,14 +274,15 @@ function TriangleLab() {
       }));
     if (casesToRun.length === 0) return;
 
-    const invalidCase = casesToRun.find(({ values }) => validateSideValues(values) !== null);
-    if (invalidCase) {
+    const invalidCase = casesToRun
+      .map(({ testCase, values }) => ({ testCase, error: validateSideValues(values) }))
+      .find(({ error }) => error !== null);
+    if (invalidCase?.error) {
       send(LabEvents.SelectCase({ caseId: invalidCase.testCase.id }));
-      setInputError(validateSideValues(invalidCase.values));
+      send(LabEvents.SideInputRejected({ error: invalidCase.error }));
       return;
     }
 
-    setInputError(null);
     send(LabEvents.RunSelectedCases());
   }
 
@@ -438,7 +377,7 @@ function TriangleLab() {
                     {testCase.name}
                   </Button>
                 )}
-                startContent={isCaseToolsOpen ? (
+                startContent={state.isCaseToolsOpen ? (
                   <CheckboxInput
                     isDisabled={isBusy}
                     isLabelHidden
@@ -486,8 +425,8 @@ function TriangleLab() {
         <Collapsible
           className="lab-case-tools"
           isDisabled={isBatchRunning}
-          isOpen={isCaseToolsOpen}
-          onOpenChange={setIsCaseToolsOpen}
+          isOpen={state.isCaseToolsOpen}
+          onOpenChange={(isOpen) => send(LabEvents.CaseToolsVisibilityChanged({ isOpen }))}
           trigger={(
             <HStack align="center" gap={2} width="100%">
               <Text type="label">{isNarrow ? "Batch tools" : "Custom and batch tools"}</Text>
@@ -551,7 +490,7 @@ function TriangleLab() {
             <Button
               isDisabled={isBusy}
               label="Delete case"
-              onClick={() => setIsDeleteDialogOpen(true)}
+              onClick={() => send(LabEvents.OpenDeleteConfirmation())}
               variant="destructive"
             />
           </HStack>
@@ -625,8 +564,8 @@ function TriangleLab() {
                         borderColor: "var(--triangle-lab-line)",
                         cursor: "default",
                       }}
-                      status={inputError?.side === side
-                        ? { type: "error", message: inputError.message }
+                      status={state.inputError?.side === side
+                        ? { type: "error", message: state.inputError.message }
                         : undefined}
                       step={1}
                       value={sideValue(state.values[side])}
@@ -804,19 +743,19 @@ function TriangleLab() {
             <VStack gap={3}>
               <VStack
                 className="lab-mobile-case-controls"
-                gap={isMobileCaseLibraryOpen ? 2 : 0}
+                gap={state.isMobileCaseLibraryOpen ? 2 : 0}
                 width="100%"
               >
                 <HStack align="center" className="lab-mobile-case-controls-row" gap={2} width="100%">
                   <Collapsible
                     className="lab-mobile-case-picker"
-                    isOpen={isMobileCaseLibraryOpen}
-                    onOpenChange={setIsMobileCaseLibraryOpen}
+                    isOpen={state.isMobileCaseLibraryOpen}
+                    onOpenChange={(isOpen) => send(LabEvents.MobileCaseLibraryVisibilityChanged({ isOpen }))}
                     trigger={mobileCasePickerTrigger}
                   >
                     {caseLibrary}
                   </Collapsible>
-                  {!isMobileCaseLibraryOpen && (
+                  {!state.isMobileCaseLibraryOpen && (
                     <Button
                       className="lab-mobile-add-case"
                       isDisabled={isBusy}
@@ -826,7 +765,7 @@ function TriangleLab() {
                     />
                   )}
                 </HStack>
-                {isMobileCaseLibraryOpen && (
+                {state.isMobileCaseLibraryOpen && (
                   <Button
                     className="lab-mobile-add-case lab-mobile-add-case-expanded"
                     isDisabled={isBusy}
@@ -875,7 +814,8 @@ function TriangleLab() {
       {!isNarrow && (
         <Collapsible
           className="lab-history-drawer"
-          defaultIsOpen={false}
+          isOpen={state.isHistoryDrawerOpen}
+          onOpenChange={(isOpen) => send(LabEvents.HistoryDrawerVisibilityChanged({ isOpen }))}
           trigger={historyTrigger}
         >
           <ScrollableArea
@@ -889,15 +829,19 @@ function TriangleLab() {
       )}
 
       <Dialog
-        isOpen={isCustomCaseDialogOpen}
-        onOpenChange={setIsCustomCaseDialogOpen}
+        isOpen={state.isCustomCaseDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) send(LabEvents.CloseCustomCaseDialog());
+        }}
         purpose="form"
         width="42rem"
       >
         <DialogHeader
-          onOpenChange={setIsCustomCaseDialogOpen}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) send(LabEvents.CloseCustomCaseDialog());
+          }}
           subtitle="Whole-number sides from 1 to 200. Built-in examples stay fixed."
-          title={editingCustomCaseId ? "Edit case details" : "New custom case"}
+          title={customCaseDraft.editingCaseId ? "Edit case details" : "New custom case"}
         />
         <form noValidate onSubmit={saveCustomCase}>
           <VStack gap={3}>
@@ -912,10 +856,10 @@ function TriangleLab() {
                   max={200}
                   min={1}
                   onChange={(value) => setSideValue(side, value, true)}
-                  status={customCaseInputError?.side === side
-                    ? { type: "error", message: customCaseInputError.message }
+                  status={state.customCaseInputError?.side === side
+                    ? { type: "error", message: state.customCaseInputError.message }
                     : undefined}
-                  value={sideValue(customCaseValues[side])}
+                  value={sideValue(customCaseDraft.values[side])}
                 />
               ))}
             </Grid>
@@ -925,40 +869,39 @@ function TriangleLab() {
               label="Case name"
               onChange={(value) => {
                 const nextName = value.slice(0, 48);
-                setCustomCaseName(nextName);
-                if (nextName.trim()) setCustomCaseNameError(null);
+                send(LabEvents.CustomCaseNameChanged({ name: nextName }));
               }}
-              status={customCaseNameError
-                ? { type: "error", message: customCaseNameError }
+              status={state.customCaseNameError
+                ? { type: "error", message: state.customCaseNameError }
                 : undefined}
-              value={customCaseName}
+              value={customCaseDraft.name}
             />
             <TextArea
               isOptional
               label="Description"
               maxLength={180}
-              onChange={setCustomCaseDescription}
+              onChange={(description) => send(LabEvents.CustomCaseDescriptionChanged({ description }))}
               placeholder="What should this case demonstrate?"
               rows={3}
-              value={customCaseDescription}
+              value={customCaseDraft.description}
             />
             <TextInput
               autoComplete="off"
               description="Add one or more tags, separated by commas."
               isOptional
               label="Tags"
-              onChange={setCustomCaseTags}
+              onChange={(tags) => send(LabEvents.CustomCaseTagsChanged({ tags }))}
               placeholder="boundary case, equal sides"
-              value={customCaseTags}
+              value={customCaseDraft.tags}
             />
             <HStack align="center" gap={2} justify="end" wrap="wrap">
               <Button
                 label="Cancel"
-                onClick={() => setIsCustomCaseDialogOpen(false)}
+                onClick={() => send(LabEvents.CloseCustomCaseDialog())}
                 variant="secondary"
               />
               <Button
-                label={editingCustomCaseId ? "Save details" : "Save case"}
+                label={customCaseDraft.editingCaseId ? "Save details" : "Save case"}
                 type="submit"
                 variant="primary"
               />
@@ -970,9 +913,11 @@ function TriangleLab() {
       <AlertDialog
         actionLabel="Delete case"
         description={'Delete "' + activeCase.name + '" from this session? Its run history will remain.'}
-        isOpen={isDeleteDialogOpen}
+        isOpen={state.isDeleteDialogOpen}
         onAction={deleteActiveCustomCase}
-        onOpenChange={setIsDeleteDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) send(LabEvents.CloseDeleteConfirmation());
+        }}
         title="Delete this custom case?"
       />
     </AppShell>

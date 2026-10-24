@@ -24,6 +24,7 @@
     "@tanstack/router-core": "1.132.0",
     "@typeonce/effect-machine": "0.46.0",
     "effect": "4.0.6",
+    "immer": "^11.2.9",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "three": "^0.186.1"
