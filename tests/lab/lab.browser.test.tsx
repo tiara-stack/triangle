@@ -39,25 +39,25 @@ describe("Triangle Test Lab", () => {
 
     await screen.getByRole("button", { name: "Add custom case" }).click();
     const dialog = screen.getByRole("dialog");
-    await dialog.getByLabelText("Case name").fill("Boundary check");
-    await dialog.getByLabelText("Description").fill("A custom regression case");
-    await dialog.getByLabelText("Tags").fill("strict boundary");
+    await dialog.getByLabelText(/Case name/).fill("Boundary check");
+    await dialog.getByLabelText(/Description/).fill("A custom regression case");
+    await dialog.getByLabelText(/Tags/).fill("strict boundary");
     await dialog.getByRole("spinbutton", { name: "Side a" }).fill("3");
     await dialog.getByRole("spinbutton", { name: "Side b" }).fill("4");
     await dialog.getByRole("spinbutton", { name: "Side c" }).fill("5");
     await dialog.getByRole("button", { name: "Save case" }).click();
 
     await expect.element(screen.getByRole("button", { name: /Boundary check/ })).toBeVisible();
-    await expect.element(screen.getByText("A custom regression case")).toBeVisible();
+    await expect.element(screen.getByText("A custom regression case").first()).toBeVisible();
 
     await screen.getByRole("button", { name: "Edit case details" }).click();
     const editDialog = screen.getByRole("dialog");
-    await editDialog.getByLabelText("Case name").fill("Edited boundary check");
-    await editDialog.getByLabelText("Description").fill("Updated case rationale");
+    await editDialog.getByLabelText(/Case name/).fill("Edited boundary check");
+    await editDialog.getByLabelText(/Description/).fill("Updated case rationale");
     await editDialog.getByRole("button", { name: "Save details" }).click();
 
     await expect.element(screen.getByRole("button", { name: /Edited boundary check/ })).toBeVisible();
-    await expect.element(screen.getByText("Updated case rationale")).toBeVisible();
+    await expect.element(screen.getByText("Updated case rationale").first()).toBeVisible();
 
     await screen.getByRole("button", { name: "Delete case" }).click();
     const confirmation = screen.getByRole("alertdialog");
