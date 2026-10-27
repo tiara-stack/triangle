@@ -1,18 +1,17 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { expect, it } from "@effect/vitest";
 import { handleTriangleRunRequest } from "../../src/lib/triangleApi";
-import type { TriangleRun } from "../../src/lib/triangle";
+import { TriangleRunSchema } from "../../src/lib/triangle";
 
 it.effect("serves the classifier result for a run request", () =>
   Effect.gen(function* () {
-    const response = yield* Effect.promise(() =>
-      handleTriangleRunRequest(new Request("http://triangle.test/api/triangle/run", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ a: "2", b: "1", c: "2" }),
-      })),
-    );
-    const result = yield* Effect.promise(() => response.json() as Promise<TriangleRun>);
+    const response = yield* handleTriangleRunRequest(new Request("http://triangle.test/api/triangle/run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ a: "2", b: "1", c: "2" }),
+    }));
+    const body = yield* Effect.promise(() => response.json());
+    const result = yield* Schema.decodeUnknownEffect(TriangleRunSchema)(body);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -27,13 +26,11 @@ it.effect("serves the classifier result for a run request", () =>
 
 it.effect("rejects malformed side value payloads", () =>
   Effect.gen(function* () {
-    const response = yield* Effect.promise(() =>
-      handleTriangleRunRequest(new Request("http://triangle.test/api/triangle/run", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ a: 2, b: "1", c: "2" }),
-      })),
-    );
+    const response = yield* handleTriangleRunRequest(new Request("http://triangle.test/api/triangle/run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ a: 2, b: "1", c: "2" }),
+    }));
 
     expect(response.status).toBe(400);
     expect(yield* Effect.promise(() => response.json())).toStrictEqual({

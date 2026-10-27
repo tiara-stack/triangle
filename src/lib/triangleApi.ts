@@ -47,9 +47,9 @@ const handleRunRequest = (
       }),
   });
 
-export const handleTriangleRunRequest = (request: Request): Promise<Response> =>
-  Effect.runPromise(
-    handleRunRequest(HttpServerRequest.fromWeb(request)).pipe(
-      Effect.map(HttpServerResponse.toWeb),
-    ),
+export const handleTriangleRunRequest = (
+  request: Request,
+): Effect.Effect<Response, HttpBody.HttpBodyError> =>
+  handleRunRequest(HttpServerRequest.fromWeb(request)).pipe(
+    Effect.map(HttpServerResponse.toWeb),
   );
