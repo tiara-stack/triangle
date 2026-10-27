@@ -3,6 +3,10 @@ dist/
 .output/
 .tanstack/
 .impeccable/
+test-results/
+playwright-report/
+blob-report/
+.vitest/
 .env
 .env.*
 !.env.example

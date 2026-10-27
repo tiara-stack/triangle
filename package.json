@@ -10,7 +10,7 @@
     "start": "node .output/server/index.mjs",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "test": "pnpm run test:lab",
-    "test:lab": "node node_modules/vitest/vitest.mjs run --config vitest.node.config.ts tests/lab/triangle-api.test.ts && node node_modules/vitest/vitest.mjs run --config vitest.browser.config.ts tests/lab",
+    "test:lab": "node node_modules/vitest/vitest.mjs run --config vitest.node.config.ts tests/lab/triangle-api.test.ts && node node_modules/vitest/vitest.mjs run --config vitest.component.config.ts tests/lab/lab.component.test.tsx && node node_modules/playwright/cli.js test --config playwright.config.ts tests/e2e/lab.spec.ts",
     "test:performative": "node scripts/performative-test.mjs",
     "astryx": "node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs"
   },
@@ -41,11 +41,17 @@
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/browser-playwright": "5.0.5",
+    "msw": "^3.0.3",
     "nitro": "3.0.260903-beta",
     "playwright": "1.64.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.5",
     "vitest": "5.0.5",
     "vitest-browser-react": "2.3.0"
+  },
+  "msw": {
+    "workerDirectory": [
+      "tests/browser-public"
+    ]
   }
 }

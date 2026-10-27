@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Schema } from "effect";
 import { useEffect } from "react";
 import { useForm } from "@tanstack/react-form";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
@@ -11,7 +11,7 @@ import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { LabState } from "../../lib/labState";
-import { validateSideInput, type SideInputError, type SideValues } from "../../lib/triangle";
+import { SideValueInputSchema, type SideInputError, type SideValues } from "../../lib/triangle";
 import { sideValue } from "./presentation";
 
 export type CustomCaseFormValues = {
@@ -57,7 +57,7 @@ export function CustomCaseDialog({
       description: draft.description,
       tags: draft.tags,
     },
-    onSubmit: async ({ value }) => onSubmit(value),
+    onSubmit: ({ value }) => onSubmit(value),
   });
 
   useEffect(() => {
@@ -103,7 +103,9 @@ export function CustomCaseDialog({
                 key={side}
                 name={side}
                 validators={{
-                  onSubmit: ({ value }) => Effect.runSync(validateSideInput(side, value))?.message,
+                  onSubmit: ({ value }) => Schema.is(SideValueInputSchema)(value)
+                    ? undefined
+                    : `Side ${side} must be a whole number.`,
                 }}
               >
                 {(field) => {

@@ -1,4 +1,4 @@
-import { Context, Layer } from "effect";
+import { Layer } from "effect";
 import { HttpRouter, HttpServer } from "effect/http";
 import { HttpApiBuilder } from "effect/http-api";
 import { TriangleApi } from "./triangleApi";
@@ -12,6 +12,3 @@ const TriangleApiLayer = HttpApiBuilder.layer(TriangleApi).pipe(
 export const triangleApiWebHandler = HttpRouter.toWebHandler(TriangleApiLayer, {
   disableLogger: true,
 });
-
-export const handleTriangleApiRequest = (request: Request): Promise<Response> =>
-  triangleApiWebHandler.handler(request, Context.empty());

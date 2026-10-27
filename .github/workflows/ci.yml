@@ -44,11 +44,8 @@ jobs:
       - name: Install Playwright Chromium
         run: node node_modules/playwright/cli.js install --with-deps chromium
 
-      - name: Run whole-lab browser tests
+      - name: Run component and end-to-end lab tests
         run: pnpm test:lab
-
-      - name: Build production server
-        run: pnpm build
 
       - name: Install Helm
         shell: bash

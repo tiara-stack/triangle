@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Effect } from "effect";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { createRef, useEffect, useRef, type RefObject } from "react";
 import { AppShell } from "@astryxdesign/core/AppShell";
@@ -21,6 +20,8 @@ import {
   isRunningBatchAtom,
   isRunningCaseAtom,
   isRunningQuickTestAtom,
+  activeValuesAreValidAtom,
+  invalidSelectedCaseAtom,
   LabEvents,
   labMachineAtom,
   labStateAtom,
@@ -32,7 +33,6 @@ import {
   type CaseId,
   type SideValues,
   type TriangleCase,
-  validateSideValues,
 } from "../lib/triangle";
 
 export const Route = createFileRoute("/")({ component: TriangleLab });
@@ -70,6 +70,8 @@ function TriangleLab() {
   const previousHistoryLength = useRef(state.history.length);
   const visibleCases = useAtomValue(visibleCasesAtom);
   const caseFilterOptions = useAtomValue(caseFilterOptionsAtom);
+  const activeValuesAreValid = useAtomValue(activeValuesAreValidAtom);
+  const invalidSelectedCase = useAtomValue(invalidSelectedCaseAtom);
   const isRunningCase = useAtomValue(isRunningCaseAtom);
   const isRunningQuickTest = useAtomValue(isRunningQuickTestAtom);
   const isRunning = isRunningCase || isRunningQuickTest;
@@ -210,7 +212,7 @@ function TriangleLab() {
       return;
     }
 
-    const sideError = Effect.runSync(validateSideValues(values));
+    const sideError = state.customCaseInputError;
     if (sideError) {
       send(LabEvents.CustomCaseInputRejected({ error: sideError }));
       return;
@@ -263,45 +265,21 @@ function TriangleLab() {
 
   function runCase(values: SideValues) {
     if (isBusy) return;
-    const validationError = Effect.runSync(validateSideValues(values));
-    if (validationError) {
-      send(LabEvents.SideInputRejected({ error: validationError }));
-      return;
-    }
-
     send(LabEvents.RunCase({ values }));
   }
 
   function runQuickTest(values: SideValues) {
     if (isBusy) return;
-    const validationError = Effect.runSync(validateSideValues(values));
-    if (validationError) {
-      send(LabEvents.SideInputRejected({ error: validationError }));
-      return;
-    }
-
     send(LabEvents.RunQuickTest({ values }));
   }
 
   function runSelectedCases() {
     if (isBusy) return;
-    const casesToRun = state.cases
-      .filter((testCase) => state.selectedCaseIds.includes(testCase.id))
-      .map((testCase) => ({
-        testCase,
-        values: { ...state.valuesByCaseId[testCase.id] },
-      }));
-    if (casesToRun.length === 0) return;
+    if (state.selectedCaseIds.length === 0) return;
 
-    const invalidCase = casesToRun
-      .map(({ testCase, values }) => ({
-        testCase,
-        error: Effect.runSync(validateSideValues(values)),
-      }))
-      .find(({ error }) => error !== null);
-    if (invalidCase?.error) {
-      send(LabEvents.SelectCase({ caseId: invalidCase.testCase.id }));
-      send(LabEvents.SideInputRejected({ error: invalidCase.error }));
+    if (invalidSelectedCase) {
+      send(LabEvents.SelectCase({ caseId: invalidSelectedCase.testCase.id }));
+      send(LabEvents.SideInputRejected({ error: invalidSelectedCase.error }));
       return;
     }
 
@@ -344,6 +322,7 @@ function TriangleLab() {
       values={state.viewMode === "compact" ? state.quickValues : state.values}
       result={state.result}
       inputError={state.inputError}
+      valuesAreValid={activeValuesAreValid}
       hasRunError={hasRunError}
       isNarrow={isNarrow}
       isBusy={isBusy}

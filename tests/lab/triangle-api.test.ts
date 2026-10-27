@@ -1,16 +1,19 @@
 import { Effect, Layer } from "effect";
 import { expect, it } from "@effect/vitest";
+import { afterAll } from "vitest";
 import { HttpServer } from "effect/http";
 import { HttpApiTest } from "effect/http-api";
 import { TriangleApi } from "../../src/lib/triangleApi";
 import { TriangleApiHandlers } from "../../src/lib/triangleApiHandlers";
-import { handleTriangleApiRequest, triangleApiWebHandler } from "../../src/lib/triangleApiServer";
+import { triangleApiWebHandler } from "../../src/lib/triangleApiServer";
 
 const makeTriangleClient = HttpApiTest.groups(TriangleApi, ["triangle"]);
 const triangleApiTestLayer = Layer.mergeAll(
   TriangleApiHandlers,
   HttpServer.layerServices,
 );
+
+afterAll(() => triangleApiWebHandler.dispose());
 
 it.effect("serves the classifier through the typed HttpApi client", () =>
   Effect.gen(function* () {
@@ -29,14 +32,18 @@ it.effect("serves the classifier through the typed HttpApi client", () =>
 
 it.effect("mounts the typed API at /api/triangle/run", () =>
   Effect.gen(function* () {
-    const response = yield* Effect.promise(() =>
-      handleTriangleApiRequest(new Request("http://triangle.test/api/triangle/run", {
+    const response = yield* Effect.tryPromise({
+      try: () => triangleApiWebHandler.handler(new Request("http://triangle.test/api/triangle/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ a: "2", b: "1", c: "2" }),
       })),
-    );
-    const result = yield* Effect.promise(() => response.json());
+      catch: (cause) => cause,
+    });
+    const result = yield* Effect.tryPromise({
+      try: () => response.json(),
+      catch: (cause) => cause,
+    });
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
@@ -51,13 +58,14 @@ it.effect("mounts the typed API at /api/triangle/run", () =>
 
 it.effect("rejects invalid request payloads at the HTTP boundary", () =>
   Effect.gen(function* () {
-    const response = yield* Effect.promise(() =>
-      handleTriangleApiRequest(new Request("http://triangle.test/api/triangle/run", {
+    const response = yield* Effect.tryPromise({
+      try: () => triangleApiWebHandler.handler(new Request("http://triangle.test/api/triangle/run", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ a: 2, b: "1", c: "2" }),
       })),
-    );
+      catch: (cause) => cause,
+    });
 
     expect(response.status).toBe(400);
   }),

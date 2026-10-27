@@ -18,7 +18,7 @@ export const SideInputErrorSchema = Schema.Struct({
 
 const wholeNumberMessage = "Enter a whole number.";
 
-const SideValueInputSchema = Schema.String.pipe(
+export const SideValueInputSchema = Schema.String.pipe(
   Schema.check(
     Schema.isPattern(/^\s*-?\d+\s*$/, { message: wholeNumberMessage }),
     Schema.makeFilter(
@@ -27,27 +27,6 @@ const SideValueInputSchema = Schema.String.pipe(
     ),
   ),
 );
-
-export const validateSideInput = Effect.fnUntraced(function* (
-  side: keyof SideValues,
-  rawValue: string,
-) {
-  return yield* Schema.decodeUnknownEffect(SideValueInputSchema)(rawValue).pipe(
-    Effect.match({
-      onFailure: () => ({ side, message: `Side ${side} must be a whole number.` }),
-      onSuccess: () => null,
-    }),
-  );
-});
-
-export const validateSideValues = Effect.fnUntraced(function*(values: SideValues) {
-  for (const side of ["a", "b", "c"] as const) {
-    const error = yield* validateSideInput(side, values[side]);
-    if (error) return error;
-  }
-
-  return null;
-});
 
 export type CaseId = string;
 export type CaseSource = "example:defect" | "example:success" | "custom";
@@ -241,11 +220,6 @@ const classifyFaultyNumbers = Effect.fnUntraced(function*(
   // Its isosceles check misses the a = c pair.
   if (a === b || b === c) return "Isosceles";
   return "Scalene";
-});
-
-export const classifyExpected = Effect.fnUntraced(function*(values: SideValues) {
-  const decodedValues = yield* decodeSideValues(values);
-  return yield* classifyExpectedNumbers(decodedValues);
 });
 
 export const evaluateTriangle = Effect.fnUntraced(function*(values: SideValues) {

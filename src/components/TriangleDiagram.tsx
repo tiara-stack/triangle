@@ -3,9 +3,7 @@ import { Stack } from "@astryxdesign/core/Stack";
 import type { SideValues } from "../lib/triangle";
 import { createTriangleDiagramModel, type DiagramPoint } from "../lib/triangleGeometry";
 
-const TriangleCanvas = lazy(() =>
-  import("./TriangleCanvas").then((module) => ({ default: module.TriangleCanvas })),
-);
+const TriangleCanvas = lazy(() => import("./TriangleCanvas"));
 
 type TriangleDiagramProps = {
   values: SideValues;

@@ -15,14 +15,25 @@ import {
 } from "./labState";
 import {
   SideInputErrorSchema,
+  SideValueInputSchema,
   SideValuesSchema,
   TriangleCaseSchema,
+  type SideInputError,
   type SideValues,
   type CaseId,
   type TriangleCase,
   type TriangleRun,
 } from "./triangle";
 import { runTriangleTestRequest } from "./triangle.http";
+
+function sideValuesInputError(values: SideValues): SideInputError | null {
+  for (const side of ["a", "b", "c"] as const) {
+    if (!Schema.is(SideValueInputSchema)(values[side])) {
+      return { side, message: `Side ${side} must be a whole number.` };
+    }
+  }
+  return null;
+}
 
 const BatchCaseSchema = Schema.Struct({
   caseId: Schema.String,
@@ -270,7 +281,7 @@ function openNewCustomCaseDialog(lab: LabState): LabState {
       editingCaseId: null,
     };
     draft.customCaseNameError = null;
-    draft.customCaseInputError = null;
+    draft.customCaseInputError = sideValuesInputError(values);
     draft.isCustomCaseDialogOpen = true;
   });
 }
@@ -290,7 +301,7 @@ function openEditCustomCaseDialog(lab: LabState, caseId: CaseId): LabState {
       editingCaseId: caseId,
     };
     draft.customCaseNameError = null;
-    draft.customCaseInputError = null;
+    draft.customCaseInputError = sideValuesInputError(draft.customCaseDraft.values);
     draft.isCustomCaseDialogOpen = true;
   });
 }
@@ -302,7 +313,7 @@ function changeCustomCaseSide(
 ): LabState {
   return produce(lab, (draft) => {
     draft.customCaseDraft.values[side] = value;
-    draft.customCaseInputError = null;
+    draft.customCaseInputError = sideValuesInputError(draft.customCaseDraft.values);
   });
 }
 
@@ -843,6 +854,20 @@ function currentBoolean(result: AsyncResult.AsyncResult<boolean, unknown>): bool
 }
 
 export const labStateAtom = Atom.make((get) => currentLabValue(get(labValueResultAtom)));
+export const activeValuesAreValidAtom = Atom.make((get) => {
+  const lab = get(labStateAtom);
+  const values = lab.viewMode === "compact" ? lab.quickValues : lab.values;
+  return Schema.is(SideValuesSchema)(values);
+});
+export const invalidSelectedCaseAtom = Atom.make((get) => {
+  const lab = get(labStateAtom);
+  for (const testCase of lab.cases) {
+    if (!lab.selectedCaseIds.includes(testCase.id)) continue;
+    const error = sideValuesInputError(lab.valuesByCaseId[testCase.id]);
+    if (error) return { testCase, error };
+  }
+  return null;
+});
 export const caseFilterOptionsAtom = Atom.make((get): ReadonlyArray<CaseFilterOption> =>
   makeCaseFilterOptions(get(labStateAtom).cases),
 );

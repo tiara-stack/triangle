@@ -1,15 +1,9 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { renderLab } from "../helpers/renderLab";
-import { disposeClassifierFetch, installClassifierFetch } from "../helpers/classifierFetch";
-
-afterAll(async () => {
-  vi.unstubAllGlobals();
-  await disposeClassifierFetch();
-});
+import { requests } from "../mocks/apiHandlers";
 
 describe("Triangle Test Lab", () => {
   it("loads both example groups, runs the recommended case, and records a session run", async () => {
-    const { fetchMock, requests } = installClassifierFetch();
     const screen = await renderLab();
 
     await expect.element(screen.getByRole("heading", { name: "Classify a triangle" })).toBeVisible();
@@ -17,7 +11,7 @@ describe("Triangle Test Lab", () => {
     await expect.element(screen.getByRole("heading", { name: "Passing examples" })).toBeVisible();
     await expect.element(screen.getByRole("button", { name: /Test 1: a and c match, recommended first case/ })).toBeVisible();
     await expect.element(screen.getByText("Expected comes from triangle rules; observed comes from the faulty classifier.")).toBeVisible();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requests).toEqual([]);
 
     await screen.getByRole("button", { name: "Run case" }).click();
 
@@ -32,7 +26,6 @@ describe("Triangle Test Lab", () => {
   });
 
   it("filters example types and creates, edits, then deletes a custom case", async () => {
-    installClassifierFetch();
     const screen = await renderLab();
 
     await screen.getByRole("combobox", { name: "Case types" }).click();

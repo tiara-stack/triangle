@@ -158,3 +158,5 @@ export function TriangleCanvas({ values, onReady, ready, renderRevision }: Trian
     </Canvas>
   );
 }
+
+export default TriangleCanvas;

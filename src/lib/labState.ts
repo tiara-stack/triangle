@@ -4,7 +4,6 @@ import {
   verifiedCases,
   SideInputErrorSchema,
   SideValuesInputSchema,
-  SideValuesSchema,
   TriangleCaseSchema,
   TriangleRunSchema,
   type CaseId,
@@ -19,8 +18,6 @@ export type BatchProgress = {
   current: number;
   total: number;
 };
-
-export type LastRunMode = "single" | "batch";
 
 export type RunRecord = {
   id: number;

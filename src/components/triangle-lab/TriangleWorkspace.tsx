@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Schema } from "effect";
 import { useEffect } from "react";
 import { useForm } from "@tanstack/react-form";
 import { Button } from "@astryxdesign/core/Button";
@@ -12,7 +12,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { TriangleDiagram } from "../TriangleDiagram";
-import { validateSideInput, validateSideValues, type SideInputError, type SideValues, type TriangleCase, type TriangleRun } from "../../lib/triangle";
+import { SideValueInputSchema, type SideInputError, type SideValues, type TriangleCase, type TriangleRun } from "../../lib/triangle";
 import { displayTriangleOutput, sideValue, verifiedDefectForValues } from "./presentation";
 
 type TriangleWorkspaceProps = {
@@ -23,6 +23,7 @@ type TriangleWorkspaceProps = {
   values: SideValues;
   result: TriangleRun | null;
   inputError: SideInputError | null;
+  valuesAreValid: boolean;
   hasRunError: boolean;
   isNarrow: boolean;
   isBusy: boolean;
@@ -57,6 +58,7 @@ export function TriangleWorkspace({
   values,
   result,
   inputError,
+  valuesAreValid,
   hasRunError,
   isNarrow,
   isBusy,
@@ -70,14 +72,14 @@ export function TriangleWorkspace({
 }: TriangleWorkspaceProps) {
   const form = useForm({
     defaultValues: values,
-    onSubmit: async ({ value }) => onRunCase(value),
+    onSubmit: ({ value }) => onRunCase(value),
   });
 
   useEffect(() => {
     form.reset(values);
   }, [activeCase.id, activeCase.values.a, activeCase.values.b, activeCase.values.c, form, isCompactMode]);
 
-  const showTriangleDiagram = !isCompactMode || Effect.runSync(validateSideValues(values)) === null;
+  const showTriangleDiagram = !isCompactMode || valuesAreValid;
   const workspaceColumns = showTriangleDiagram
     ? { minWidth: 220, max: 2 } as const
     : { minWidth: 220, max: 1 } as const;
@@ -147,7 +149,9 @@ export function TriangleWorkspace({
                       key={side}
                       name={side}
                       validators={{
-                        onSubmit: ({ value }) => Effect.runSync(validateSideInput(side, value))?.message,
+                        onSubmit: ({ value }) => Schema.is(SideValueInputSchema)(value)
+                          ? undefined
+                          : `Side ${side} must be a whole number.`,
                       }}
                     >
                       {(field) => {
