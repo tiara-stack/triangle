@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { useEffect } from "react";
 import { useForm } from "@tanstack/react-form";
 import { Button } from "@astryxdesign/core/Button";
@@ -76,7 +77,7 @@ export function TriangleWorkspace({
     form.reset(values);
   }, [activeCase.id, activeCase.values.a, activeCase.values.b, activeCase.values.c, form, isCompactMode]);
 
-  const showTriangleDiagram = !isCompactMode || validateSideValues(values) === null;
+  const showTriangleDiagram = !isCompactMode || Effect.runSync(validateSideValues(values)) === null;
   const workspaceColumns = showTriangleDiagram
     ? { minWidth: 220, max: 2 } as const
     : { minWidth: 220, max: 1 } as const;
@@ -146,7 +147,7 @@ export function TriangleWorkspace({
                       key={side}
                       name={side}
                       validators={{
-                        onSubmit: ({ value }) => validateSideInput(side, value)?.message,
+                        onSubmit: ({ value }) => Effect.runSync(validateSideInput(side, value))?.message,
                       }}
                     >
                       {(field) => {

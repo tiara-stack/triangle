@@ -16,27 +16,38 @@ export const SideInputErrorSchema = Schema.Struct({
   message: Schema.String,
 });
 
-export function validateSideInput(side: keyof SideValues, rawValue: string): SideInputError | null {
-  const value = rawValue.trim();
-  if (!/^-?\d+$/.test(value)) {
-    return { side, message: `Side ${side} must be a whole number.` };
-  }
+const wholeNumberMessage = "Enter a whole number.";
 
-  if (!Number.isSafeInteger(Number(value))) {
-    return { side, message: `Side ${side} must be a whole number.` };
-  }
+const SideValueInputSchema = Schema.String.pipe(
+  Schema.check(
+    Schema.isPattern(/^\s*-?\d+\s*$/, { message: wholeNumberMessage }),
+    Schema.makeFilter(
+      (value) => Number.isSafeInteger(Number(value.trim())) || wholeNumberMessage,
+      { message: wholeNumberMessage },
+    ),
+  ),
+);
 
-  return null;
-}
+export const validateSideInput = Effect.fnUntraced(function* (
+  side: keyof SideValues,
+  rawValue: string,
+) {
+  return yield* Schema.decodeUnknownEffect(SideValueInputSchema)(rawValue).pipe(
+    Effect.match({
+      onFailure: () => ({ side, message: `Side ${side} must be a whole number.` }),
+      onSuccess: () => null,
+    }),
+  );
+});
 
-export function validateSideValues(values: SideValues): SideInputError | null {
+export const validateSideValues = Effect.fnUntraced(function*(values: SideValues) {
   for (const side of ["a", "b", "c"] as const) {
-    const error = validateSideInput(side, values[side]);
+    const error = yield* validateSideInput(side, values[side]);
     if (error) return error;
   }
 
   return null;
-}
+});
 
 export type CaseId = string;
 export type CaseSource = "example:defect" | "example:success" | "custom";
@@ -45,7 +56,6 @@ export type TriangleOutput =
   | "Isosceles"
   | "Scalene"
   | "NotATriangle"
-  | "Value is not an integer"
   | "Value is out of range";
 
 export type TriangleRun = {
@@ -55,10 +65,29 @@ export type TriangleRun = {
   failed: boolean;
 };
 
-export const SideValuesSchema = Schema.Struct({
+export const SideValuesInputSchema = Schema.Struct({
   a: Schema.String,
   b: Schema.String,
   c: Schema.String,
+});
+
+export const SideValuesSchema = Schema.Struct({
+  a: SideValueInputSchema,
+  b: SideValueInputSchema,
+  c: SideValueInputSchema,
+});
+
+const NumericSideValuesSchema = Schema.Struct({
+  a: Schema.NumberFromString.pipe(Schema.check(Schema.isInt())),
+  b: Schema.NumberFromString.pipe(Schema.check(Schema.isInt())),
+  c: Schema.NumberFromString.pipe(Schema.check(Schema.isInt())),
+});
+
+type NumericSideValues = Schema.Schema.Type<typeof NumericSideValuesSchema>;
+
+const decodeSideValues = Effect.fnUntraced(function*(values: SideValues) {
+  const validatedValues = yield* Schema.decodeUnknownEffect(SideValuesSchema)(values);
+  return yield* Schema.decodeUnknownEffect(NumericSideValuesSchema)(validatedValues);
 });
 
 const TriangleOutputSchema = Schema.Literals([
@@ -66,7 +95,6 @@ const TriangleOutputSchema = Schema.Literals([
   "Isosceles",
   "Scalene",
   "NotATriangle",
-  "Value is not an integer",
   "Value is out of range",
 ]);
 
@@ -187,32 +215,21 @@ export const validCases: ReadonlyArray<ValidCase> = [
 
 export const labCases: ReadonlyArray<TriangleCase> = [...verifiedCases, ...validCases];
 
-function parseSide(value: string): number | null {
-  const trimmed = value.trim();
-  if (!/^-?\d+$/.test(trimmed)) return null;
-  const parsed = Number(trimmed);
-  return Number.isSafeInteger(parsed) ? parsed : null;
-}
-
-export function classifyExpected(values: SideValues): TriangleOutput {
-  const a = parseSide(values.a);
-  const b = parseSide(values.b);
-  const c = parseSide(values.c);
-
-  if (a === null || b === null || c === null) return "Value is not an integer";
+const classifyExpectedNumbers = Effect.fnUntraced(function*(
+  values: NumericSideValues,
+): Effect.fn.Return<TriangleOutput> {
+  const { a, b, c } = values;
   if ([a, b, c].some((side) => side < 1 || side > 200)) return "Value is out of range";
   if (!(a < b + c && b < a + c && c < a + b)) return "NotATriangle";
   if (a === b && b === c) return "Equilateral";
   if (a === b || a === c || b === c) return "Isosceles";
   return "Scalene";
-}
+});
 
-function classifyFaulty(values: SideValues): TriangleOutput {
-  const a = parseSide(values.a);
-  const b = parseSide(values.b);
-  const c = parseSide(values.c);
-
-  if (a === null || b === null || c === null) return "Value is not an integer";
+const classifyFaultyNumbers = Effect.fnUntraced(function*(
+  values: NumericSideValues,
+): Effect.fn.Return<TriangleOutput> {
+  const { a, b, c } = values;
   if ([a, b, c].some((side) => side < 1 || side > 200) || b === 200) {
     return "Value is out of range";
   }
@@ -224,11 +241,19 @@ function classifyFaulty(values: SideValues): TriangleOutput {
   // Its isosceles check misses the a = c pair.
   if (a === b || b === c) return "Isosceles";
   return "Scalene";
-}
+});
 
-export function evaluateTriangle(values: SideValues): TriangleRun {
-  const expected = classifyExpected(values);
-  const observed = classifyFaulty(values);
+export const classifyExpected = Effect.fnUntraced(function*(values: SideValues) {
+  const decodedValues = yield* decodeSideValues(values);
+  return yield* classifyExpectedNumbers(decodedValues);
+});
+
+export const evaluateTriangle = Effect.fnUntraced(function*(values: SideValues) {
+  const decodedValues = yield* decodeSideValues(values);
+  const [expected, observed] = yield* Effect.all([
+    classifyExpectedNumbers(decodedValues),
+    classifyFaultyNumbers(decodedValues),
+  ]);
 
   return {
     values,
@@ -236,7 +261,6 @@ export function evaluateTriangle(values: SideValues): TriangleRun {
     observed,
     failed: expected !== observed,
   };
-}
+});
 
-export const runTriangleTest = (values: SideValues): Effect.Effect<TriangleRun> =>
-  Effect.sync(() => evaluateTriangle(values));
+export const runTriangleTest = evaluateTriangle;

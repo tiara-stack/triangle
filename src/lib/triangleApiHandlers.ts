@@ -8,7 +8,7 @@ export const TriangleApiHandlers = HttpApiBuilder.group(
   "triangle",
   Effect.fn(function* (handlers) {
     return handlers.handle("run", Effect.fn(function* ({ payload }) {
-      const body = yield* runTriangleTest(payload);
+      const body = yield* runTriangleTest(payload).pipe(Effect.orDie);
       return HttpApiSchema.withHeaders({
         body,
         headers: { "cache-control": "no-store" },

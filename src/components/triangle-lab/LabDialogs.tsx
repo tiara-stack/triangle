@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { useEffect } from "react";
 import { useForm } from "@tanstack/react-form";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
@@ -102,7 +103,7 @@ export function CustomCaseDialog({
                 key={side}
                 name={side}
                 validators={{
-                  onSubmit: ({ value }) => validateSideInput(side, value)?.message,
+                  onSubmit: ({ value }) => Effect.runSync(validateSideInput(side, value))?.message,
                 }}
               >
                 {(field) => {

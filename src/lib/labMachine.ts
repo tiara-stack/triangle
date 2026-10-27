@@ -17,7 +17,6 @@ import {
   SideInputErrorSchema,
   SideValuesSchema,
   TriangleCaseSchema,
-  validateSideValues,
   type SideValues,
   type CaseId,
   type TriangleCase,
@@ -271,7 +270,7 @@ function openNewCustomCaseDialog(lab: LabState): LabState {
       editingCaseId: null,
     };
     draft.customCaseNameError = null;
-    draft.customCaseInputError = validateSideValues(values);
+    draft.customCaseInputError = null;
     draft.isCustomCaseDialogOpen = true;
   });
 }
@@ -291,7 +290,7 @@ function openEditCustomCaseDialog(lab: LabState, caseId: CaseId): LabState {
       editingCaseId: caseId,
     };
     draft.customCaseNameError = null;
-    draft.customCaseInputError = validateSideValues(values);
+    draft.customCaseInputError = null;
     draft.isCustomCaseDialogOpen = true;
   });
 }
@@ -303,7 +302,7 @@ function changeCustomCaseSide(
 ): LabState {
   return produce(lab, (draft) => {
     draft.customCaseDraft.values[side] = value;
-    draft.customCaseInputError = validateSideValues(draft.customCaseDraft.values);
+    draft.customCaseInputError = null;
   });
 }
 

@@ -44,11 +44,8 @@ for (const testCase of classifierCases) {
     Effect.gen(function* () {
       const result = yield* runTriangleTest(testCase.values);
 
-      expect({
-        expected: result.expected,
-        observed: result.observed,
-        failed: result.failed,
-      }).toStrictEqual({
+      expect(result).toStrictEqual({
+        values: testCase.values,
         expected: testCase.expected,
         observed: testCase.expected,
         failed: false,
@@ -65,9 +62,12 @@ for (const values of [
     Effect.gen(function* () {
       const result = yield* runTriangleTest(values);
 
-      expect(result.expected).toBe("Value is out of range");
-      expect(result.observed).toBe("Value is out of range");
-      expect(result.failed).toBe(false);
+      expect(result).toStrictEqual({
+        values,
+        expected: "Value is out of range",
+        observed: "Value is out of range",
+        failed: false,
+      });
     }),
   );
 }

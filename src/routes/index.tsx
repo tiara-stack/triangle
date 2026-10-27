@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Effect } from "effect";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import { createRef, useEffect, useRef, type RefObject } from "react";
 import { AppShell } from "@astryxdesign/core/AppShell";
@@ -209,7 +210,7 @@ function TriangleLab() {
       return;
     }
 
-    const sideError = validateSideValues(values);
+    const sideError = Effect.runSync(validateSideValues(values));
     if (sideError) {
       send(LabEvents.CustomCaseInputRejected({ error: sideError }));
       return;
@@ -262,7 +263,7 @@ function TriangleLab() {
 
   function runCase(values: SideValues) {
     if (isBusy) return;
-    const validationError = validateSideValues(values);
+    const validationError = Effect.runSync(validateSideValues(values));
     if (validationError) {
       send(LabEvents.SideInputRejected({ error: validationError }));
       return;
@@ -273,7 +274,7 @@ function TriangleLab() {
 
   function runQuickTest(values: SideValues) {
     if (isBusy) return;
-    const validationError = validateSideValues(values);
+    const validationError = Effect.runSync(validateSideValues(values));
     if (validationError) {
       send(LabEvents.SideInputRejected({ error: validationError }));
       return;
@@ -293,7 +294,10 @@ function TriangleLab() {
     if (casesToRun.length === 0) return;
 
     const invalidCase = casesToRun
-      .map(({ testCase, values }) => ({ testCase, error: validateSideValues(values) }))
+      .map(({ testCase, values }) => ({
+        testCase,
+        error: Effect.runSync(validateSideValues(values)),
+      }))
       .find(({ error }) => error !== null);
     if (invalidCase?.error) {
       send(LabEvents.SelectCase({ caseId: invalidCase.testCase.id }));
