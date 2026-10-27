@@ -16,17 +16,23 @@ export const SideInputErrorSchema = Schema.Struct({
   message: Schema.String,
 });
 
+export function validateSideInput(side: keyof SideValues, rawValue: string): SideInputError | null {
+  const value = rawValue.trim();
+  if (!/^-?\d+$/.test(value)) {
+    return { side, message: `Side ${side} must be a whole number.` };
+  }
+
+  if (!Number.isSafeInteger(Number(value))) {
+    return { side, message: `Side ${side} must be a whole number.` };
+  }
+
+  return null;
+}
+
 export function validateSideValues(values: SideValues): SideInputError | null {
   for (const side of ["a", "b", "c"] as const) {
-    const value = values[side].trim();
-    if (!/^-?\d+$/.test(value)) {
-      return { side, message: `Side ${side} must be a whole number.` };
-    }
-
-    const parsed = Number(value);
-    if (!Number.isSafeInteger(parsed)) {
-      return { side, message: `Side ${side} must be a whole number.` };
-    }
+    const error = validateSideInput(side, values[side]);
+    if (error) return error;
   }
 
   return null;

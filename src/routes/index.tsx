@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
-import { createRef, useEffect, useRef, type FormEvent, type RefObject } from "react";
+import { createRef, useEffect, useRef, type RefObject } from "react";
 import { AppShell } from "@astryxdesign/core/AppShell";
 import { Button } from "@astryxdesign/core/Button";
 import { Center } from "@astryxdesign/core/Center";
@@ -12,7 +12,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { useMediaQuery } from "@astryxdesign/core/hooks";
 import { CaseLibrary } from "../components/triangle-lab/CaseLibrary";
-import { CustomCaseDialog, DeleteCaseDialog } from "../components/triangle-lab/LabDialogs";
+import { CustomCaseDialog, DeleteCaseDialog, type CustomCaseFormValues } from "../components/triangle-lab/LabDialogs";
 import { RunHistory } from "../components/triangle-lab/RunHistory";
 import { TriangleWorkspace } from "../components/triangle-lab/TriangleWorkspace";
 import {
@@ -197,15 +197,13 @@ function TriangleLab() {
     send(LabEvents.CustomCaseSideChanged({ side, value: value === null ? "" : String(value) }));
   }
 
-  function saveCustomCase(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formValues = new FormData(event.currentTarget);
+  function saveCustomCase(formValues: CustomCaseFormValues) {
     const values: SideValues = {
-      a: String(formValues.get("a") ?? ""),
-      b: String(formValues.get("b") ?? ""),
-      c: String(formValues.get("c") ?? ""),
+      a: formValues.a,
+      b: formValues.b,
+      c: formValues.c,
     };
-    const name = customCaseDraft.name.trim();
+    const name = formValues.name.trim();
     if (!name) {
       send(LabEvents.CustomCaseNameRejected({ message: "Enter a name for this case." }));
       return;
@@ -217,13 +215,13 @@ function TriangleLab() {
       return;
     }
 
-    const description = customCaseDraft.description.trim();
+    const description = formValues.description.trim();
     const testCase: TriangleCase = {
       id: customCaseDraft.editingCaseId ?? createSessionCaseId(state.cases),
       name,
       ...(description ? { description } : {}),
       source: "custom",
-      tags: parseCustomTags(customCaseDraft.tags),
+      tags: parseCustomTags(formValues.tags),
       values,
     };
 

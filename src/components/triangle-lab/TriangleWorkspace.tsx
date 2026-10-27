@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useForm } from "@tanstack/react-form";
 import { Button } from "@astryxdesign/core/Button";
 import { Grid } from "@astryxdesign/core/Grid";
 import { Heading } from "@astryxdesign/core/Heading";
@@ -9,7 +11,7 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { TriangleDiagram } from "../TriangleDiagram";
-import { validateSideValues, type SideInputError, type SideValues, type TriangleCase, type TriangleRun } from "../../lib/triangle";
+import { validateSideInput, validateSideValues, type SideInputError, type SideValues, type TriangleCase, type TriangleRun } from "../../lib/triangle";
 import { displayTriangleOutput, sideValue, verifiedDefectForValues } from "./presentation";
 
 type TriangleWorkspaceProps = {
@@ -65,6 +67,15 @@ export function TriangleWorkspace({
   onEditSides,
   onViewMatchingCase,
 }: TriangleWorkspaceProps) {
+  const form = useForm({
+    defaultValues: values,
+    onSubmit: async ({ value }) => onRunCase(value),
+  });
+
+  useEffect(() => {
+    form.reset(values);
+  }, [activeCase.id, activeCase.values.a, activeCase.values.b, activeCase.values.c, form, isCompactMode]);
+
   const showTriangleDiagram = !isCompactMode || validateSideValues(values) === null;
   const workspaceColumns = showTriangleDiagram
     ? { minWidth: 220, max: 2 } as const
@@ -116,12 +127,8 @@ export function TriangleWorkspace({
               noValidate
               onSubmit={(event) => {
                 event.preventDefault();
-                const submittedValues = new FormData(event.currentTarget);
-                onRunCase({
-                  a: String(submittedValues.get("a") ?? ""),
-                  b: String(submittedValues.get("b") ?? ""),
-                  c: String(submittedValues.get("c") ?? ""),
-                });
+                event.stopPropagation();
+                void form.handleSubmit();
               }}
             >
               <VStack gap={isNarrow ? 2 : 3}>
@@ -135,27 +142,44 @@ export function TriangleWorkspace({
                 </VStack>
                 <Grid columns={{ minWidth: 88, max: 3 }} gap={2}>
                   {(["a", "b", "c"] as const).map((side) => (
-                    <NumberInput
-                      hasClear={isCompactMode || activeCase.source === "custom"}
-                      htmlName={side}
-                      isDisabled={isBusy}
-                      isIntegerOnly
-                      isReadOnly={!isCompactMode && activeCase.source !== "custom"}
-                      isWheelEnabled={false}
+                    <form.Field
                       key={side}
-                      label={"Side " + side}
-                      onChange={(value: number | null) => onSideChange(side, value)}
-                      controlStyle={isCompactMode || activeCase.source === "custom" ? undefined : {
-                        backgroundColor: "var(--triangle-lab-neutral-wash)",
-                        borderColor: "var(--triangle-lab-line)",
-                        cursor: "default",
+                      name={side}
+                      validators={{
+                        onSubmit: ({ value }) => validateSideInput(side, value)?.message,
                       }}
-                      status={inputError?.side === side
-                        ? { type: "error", message: inputError.message }
-                        : undefined}
-                      step={1}
-                      value={sideValue(values[side])}
-                    />
+                    >
+                      {(field) => {
+                        const fieldError = field.state.meta.errors[0];
+                        return (
+                          <NumberInput
+                            hasClear={isCompactMode || activeCase.source === "custom"}
+                            htmlName={side}
+                            isDisabled={isBusy}
+                            isIntegerOnly
+                            isReadOnly={!isCompactMode && activeCase.source !== "custom"}
+                            isWheelEnabled={false}
+                            label={"Side " + side}
+                            onChange={(value: number | null) => {
+                              field.handleChange(value === null ? "" : String(value));
+                              onSideChange(side, value);
+                            }}
+                            controlStyle={isCompactMode || activeCase.source === "custom" ? undefined : {
+                              backgroundColor: "var(--triangle-lab-neutral-wash)",
+                              borderColor: "var(--triangle-lab-line)",
+                              cursor: "default",
+                            }}
+                            status={inputError?.side === side
+                              ? { type: "error", message: inputError.message }
+                              : typeof fieldError === "string"
+                                ? { type: "error", message: fieldError }
+                                : undefined}
+                            step={1}
+                            value={sideValue(field.state.value)}
+                          />
+                        );
+                      }}
+                    </form.Field>
                   ))}
                 </Grid>
                 <HStack align="center" gap={2} wrap="wrap">
@@ -170,7 +194,10 @@ export function TriangleWorkspace({
                     <Button
                       isDisabled={isBusy}
                       label="Restore saved case"
-                      onClick={onResetCase}
+                      onClick={() => {
+                        onResetCase();
+                        form.reset(activeCase.values);
+                      }}
                       variant="secondary"
                     />
                   )}
