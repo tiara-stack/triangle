@@ -9,9 +9,9 @@
     "preview": "node node_modules/vite/bin/vite.js preview --host 0.0.0.0 --port 4173",
     "start": "node .output/server/index.mjs",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
-    "test": "pnpm run test:lab && pnpm run test:performative",
+    "test": "pnpm run test:lab",
     "test:lab": "node node_modules/vitest/vitest.mjs run --config vitest.node.config.ts tests/lab/triangle-api.test.ts && node node_modules/vitest/vitest.mjs run --config vitest.browser.config.ts tests/lab",
-    "test:performative": "node node_modules/vitest/vitest.mjs run --config vitest.node.config.ts tests/performative/triangle.test.ts && node node_modules/vitest/vitest.mjs run --config vitest.browser.config.ts tests/performative/triangle.browser.test.tsx",
+    "test:performative": "node scripts/performative-test.mjs",
     "astryx": "node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs"
   },
   "dependencies": {

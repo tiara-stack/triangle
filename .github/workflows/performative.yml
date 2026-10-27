@@ -1,4 +1,4 @@
-name: Performative defect checks
+name: Performative defect detection
 
 permissions: {}
 
@@ -7,7 +7,7 @@ on:
 
 jobs:
   performative:
-    name: Verify known classifier defects directly and through the UI
+    name: Known defects should fail direct and UI assertions
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,5 +35,5 @@ jobs:
       - name: Install Playwright Chromium
         run: node node_modules/playwright/cli.js install --with-deps chromium
 
-      - name: Run direct and UI performative checks
+      - name: Run defect-detecting assertions (should fail while defects remain)
         run: pnpm test:performative

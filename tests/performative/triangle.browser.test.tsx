@@ -6,27 +6,24 @@ afterAll(() => vi.unstubAllGlobals());
 
 const defectExamples = [
   {
-    name: "shows the omitted a = c result through the compact UI",
+    name: "classifies a = c sides as isosceles through the compact UI",
     values: ["2", "1", "2"],
     expected: "Isosceles",
-    observed: "Scalene",
   },
   {
-    name: "shows the strict triangle boundary result through the compact UI",
+    name: "rejects equality at the longest-side boundary through the compact UI",
     values: ["1", "2", "1"],
     expected: "Not a triangle",
-    observed: "Scalene",
   },
   {
-    name: "shows the valid side-200 result through the compact UI",
+    name: "accepts a valid triangle with side lengths of 200 through the compact UI",
     values: ["1", "200", "200"],
     expected: "Isosceles",
-    observed: "Value is out of range",
   },
 ] as const;
 
 describe("performative defect checks through the user interface", () => {
-  it.each(defectExamples)("$name", async ({ values, expected, observed }) => {
+  it.each(defectExamples)("$name", async ({ values, expected }) => {
     const { requests } = installClassifierFetch();
     const screen = await renderLab();
 
@@ -37,9 +34,10 @@ describe("performative defect checks through the user interface", () => {
     }
     await screen.getByRole("button", { name: "Run test" }).click();
 
-    await expect.element(screen.getByText(expected)).toBeVisible();
-    await expect.element(screen.getByText(observed)).toBeVisible();
-    await expect.element(screen.getByText("Run complete · Classifier mismatch")).toBeVisible();
+    const matchingOutputs = screen.getByRole("heading", { name: expected });
+    await expect.element(matchingOutputs.first()).toBeVisible();
+    await expect.element(matchingOutputs.nth(1)).toBeVisible();
+    await expect.element(screen.getByText("Run complete · Matches expected")).toBeVisible();
     expect(requests.at(-1)).toEqual({ a: values[0], b: values[1], c: values[2] });
   });
 
@@ -57,7 +55,9 @@ describe("performative defect checks through the user interface", () => {
     }
     await screen.getByRole("button", { name: "Run test" }).click();
 
-    await expect.element(screen.getByRole("heading", { name: "Value is out of range" }).first()).toBeVisible();
+    const rangeOutputs = screen.getByRole("heading", { name: "Value is out of range" });
+    await expect.element(rangeOutputs.first()).toBeVisible();
+    await expect.element(rangeOutputs.nth(1)).toBeVisible();
     await expect.element(screen.getByText("Run complete · Matches expected")).toBeVisible();
     expect(requests.at(-1)).toEqual({ a: values[0], b: values[1], c: values[2] });
   });
