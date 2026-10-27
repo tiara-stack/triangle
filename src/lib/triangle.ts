@@ -19,13 +19,13 @@ export const SideInputErrorSchema = Schema.Struct({
 export function validateSideValues(values: SideValues): SideInputError | null {
   for (const side of ["a", "b", "c"] as const) {
     const value = values[side].trim();
-    if (!/^\d+$/.test(value)) {
-      return { side, message: `Side ${side} must be a whole number from 1 to 200.` };
+    if (!/^-?\d+$/.test(value)) {
+      return { side, message: `Side ${side} must be a whole number.` };
     }
 
     const parsed = Number(value);
-    if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 200) {
-      return { side, message: `Side ${side} must be a whole number from 1 to 200.` };
+    if (!Number.isSafeInteger(parsed)) {
+      return { side, message: `Side ${side} must be a whole number.` };
     }
   }
 

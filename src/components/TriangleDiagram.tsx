@@ -17,10 +17,13 @@ function TriangleDiagramFallback({ values, ready }: TriangleDiagramProps & { rea
   const toSvg = ([x, y]: DiagramPoint): DiagramPoint => [120 + x * 85, 110 - y * 85];
 
   if (model.kind === "incomplete") {
+    const label = [values.a, values.b, values.c].some((value) => value.trim() === "")
+      ? "Enter side lengths"
+      : "Diagram needs positive sides";
     return (
       <svg aria-hidden="true" className={className} viewBox="0 0 240 220">
         <text className="triangle-fallback__state-label" x="120" y="115" textAnchor="middle">
-          Enter side lengths
+          {label}
         </text>
       </svg>
     );
@@ -83,7 +86,7 @@ export function TriangleDiagram({ values }: TriangleDiagramProps) {
       ? `Triangle with side a equal to ${values.a}, side b equal to ${values.b}, and side c equal to ${values.c}, drawn to scale${model.withinDomain ? "" : "; values exceed the allowed range"}`
       : model.kind === "no-triangle"
         ? `Side a equals ${values.a}, side b equals ${values.b}, and side c equals ${values.c}. They do not form a triangle; their lengths are shown separately to scale.`
-        : "Enter three positive whole-number side lengths to see the diagram";
+        : "A diagram requires positive whole-number side lengths.";
 
   return (
     <Stack aria-label={description} className="triangle-diagram" role="img">

@@ -50,7 +50,7 @@ export function CustomCaseDialog({
         onOpenChange={(nextIsOpen) => {
           if (!nextIsOpen) onClose();
         }}
-        subtitle="Custom cases stay in this session only. Use whole-number sides from 1 to 200."
+        subtitle="Custom cases stay in this session only. Use whole numbers; values outside 1–200 can test range handling."
         title={draft.editingCaseId ? "Edit case details" : "New custom case"}
       />
       <form noValidate onSubmit={onSubmit}>
@@ -59,12 +59,11 @@ export function CustomCaseDialog({
             {(["a", "b", "c"] as const).map((side) => (
               <NumberInput
                 hasClear
+                htmlName={side}
                 isIntegerOnly
                 isWheelEnabled={false}
                 key={side}
                 label={"Side " + side}
-                max={200}
-                min={1}
                 onChange={(value) => onSideChange(side, value)}
                 status={inputError?.side === side
                   ? { type: "error", message: inputError.message }

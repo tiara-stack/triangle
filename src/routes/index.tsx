@@ -131,6 +131,26 @@ function TriangleLab() {
     }
   }
 
+  function viewMatchingCase(testCase: TriangleCase) {
+    if (testCase.source !== "example:defect") return;
+
+    send(LabEvents.ViewModeChanged({ mode: "library" }));
+    send(LabEvents.UpdateCaseFilters({ filters: ["example:defect", "example:success"] }));
+    send(LabEvents.SelectCase({ caseId: testCase.id }));
+    if (isNarrow) {
+      send(LabEvents.MobileCaseLibraryVisibilityChanged({ isOpen: true }));
+      window.requestAnimationFrame(() => {
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const caseButton = caseSelectorRefs.current.get(testCase.id)?.current;
+        caseButton?.scrollIntoView({
+          behavior: reduceMotion ? "auto" : "smooth",
+          block: "center",
+        });
+        caseButton?.focus({ preventScroll: true });
+      });
+    }
+  }
+
   function openMobileCaseLibrary() {
     if (!isNarrow) return;
 
@@ -179,13 +199,19 @@ function TriangleLab() {
 
   function saveCustomCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formValues = new FormData(event.currentTarget);
+    const values: SideValues = {
+      a: String(formValues.get("a") ?? ""),
+      b: String(formValues.get("b") ?? ""),
+      c: String(formValues.get("c") ?? ""),
+    };
     const name = customCaseDraft.name.trim();
     if (!name) {
       send(LabEvents.CustomCaseNameRejected({ message: "Enter a name for this case." }));
       return;
     }
 
-    const sideError = validateSideValues(customCaseDraft.values);
+    const sideError = validateSideValues(values);
     if (sideError) {
       send(LabEvents.CustomCaseInputRejected({ error: sideError }));
       return;
@@ -198,7 +224,7 @@ function TriangleLab() {
       ...(description ? { description } : {}),
       source: "custom",
       tags: parseCustomTags(customCaseDraft.tags),
-      values: { ...customCaseDraft.values },
+      values,
     };
 
     send(LabEvents.SaveCustomCase({ testCase }));
@@ -236,26 +262,26 @@ function TriangleLab() {
     send(LabEvents.ResetCase());
   }
 
-  function runCase() {
+  function runCase(values: SideValues) {
     if (isBusy) return;
-    const validationError = validateSideValues({ ...state.values });
+    const validationError = validateSideValues(values);
     if (validationError) {
       send(LabEvents.SideInputRejected({ error: validationError }));
       return;
     }
 
-    send(LabEvents.RunCase());
+    send(LabEvents.RunCase({ values }));
   }
 
-  function runQuickTest() {
+  function runQuickTest(values: SideValues) {
     if (isBusy) return;
-    const validationError = validateSideValues({ ...state.quickValues });
+    const validationError = validateSideValues(values);
     if (validationError) {
       send(LabEvents.SideInputRejected({ error: validationError }));
       return;
     }
 
-    send(LabEvents.RunQuickTest());
+    send(LabEvents.RunQuickTest({ values }));
   }
 
   function runSelectedCases() {
@@ -303,6 +329,7 @@ function TriangleLab() {
       onEditCustomCase={openEditCustomCaseDialog}
       onRequestDeleteCase={requestDeleteCase}
       onCaseToolsVisibilityChange={(isOpen) => send(LabEvents.CaseToolsVisibilityChanged({ isOpen }))}
+      onAdvancedFiltersVisibilityChange={(isOpen) => send(LabEvents.AdvancedFiltersVisibilityChanged({ isOpen }))}
     />
   );
 
@@ -324,6 +351,7 @@ function TriangleLab() {
       onResetCase={resetCase}
       onChooseAnotherCase={openMobileCaseLibrary}
       onEditSides={focusSideInputs}
+      onViewMatchingCase={viewMatchingCase}
     />
   );
 

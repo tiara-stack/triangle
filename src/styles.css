@@ -52,6 +52,11 @@
     max-block-size: min(50vh, 24rem);
   }
 
+  .lab-mobile-history .astryx-collapsible-trigger {
+    inline-size: 100%;
+    min-block-size: var(--spacing-12);
+  }
+
   .lab-product-name {
     color: var(--triangle-lab-cobalt-press);
     font-weight: var(--font-weight-bold);

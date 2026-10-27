@@ -82,6 +82,7 @@ export const LabEvents = Machine.eventsFromSchemas(
     SideInputRejected: { error: SideInputErrorSchema },
     MobileCaseLibraryVisibilityChanged: { isOpen: Schema.Boolean },
     CaseToolsVisibilityChanged: { isOpen: Schema.Boolean },
+    AdvancedFiltersVisibilityChanged: { isOpen: Schema.Boolean },
     HistoryDrawerVisibilityChanged: { isOpen: Schema.Boolean },
     OpenDeleteConfirmation: {},
     CloseDeleteConfirmation: {},
@@ -95,8 +96,8 @@ export const LabEvents = Machine.eventsFromSchemas(
       value: Schema.String,
     },
     ResetCase: {},
-    RunCase: {},
-    RunQuickTest: {},
+    RunCase: { values: SideValuesSchema },
+    RunQuickTest: { values: SideValuesSchema },
     RunSelectedCases: {},
   }),
 );
@@ -496,6 +497,12 @@ const presentationTransitions = {
       draft.isCaseToolsOpen = event.isOpen;
     }),
   },
+  AdvancedFiltersVisibilityChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly isOpen: boolean }>) => produce(root, (draft) => {
+      draft.isAdvancedFiltersOpen = event.isOpen;
+    }),
+  },
   HistoryDrawerVisibilityChanged: {
     update: "root" as const,
     data: ({ root, event }: RootEventContext<{ readonly isOpen: boolean }>) => produce(root, (draft) => {
@@ -587,12 +594,15 @@ const runTransitions = {
   RunCase: {
     target: "RunningCase" as const,
     update: "root" as const,
-    data: ({ root }: RootContext) => {
+    data: ({ root, event }: RootEventContext<{ readonly values: SideValues }>) => {
       const activeCase = root.cases.find((testCase) => testCase.id === root.activeCaseId)!;
+      const values = { ...event.values };
       const update = produce(root, (draft) => {
         clearRunState(draft);
         draft.inputError = null;
         draft.result = null;
+        draft.values = values;
+        draft.valuesByCaseId[activeCase.id] = values;
         draft.resultsByCaseId[activeCase.id] = null;
         draft.statuses[activeCase.id] = "not-run";
         draft.lastRunMode = "single";
@@ -601,7 +611,7 @@ const runTransitions = {
         target: {
           caseId: activeCase.id,
           name: activeCase.name,
-          values: { ...root.values },
+          values,
         },
         update,
       };
@@ -610,12 +620,13 @@ const runTransitions = {
   RunQuickTest: {
     target: "RunningQuickTest" as const,
     update: "root" as const,
-    data: ({ root }: RootContext) => {
-      const values = { ...root.quickValues };
+    data: ({ root, event }: RootEventContext<{ readonly values: SideValues }>) => {
+      const values = { ...event.values };
       const update = produce(root, (draft) => {
         clearRunState(draft);
         draft.inputError = null;
         draft.result = null;
+        draft.quickValues = values;
       });
       return { target: { values }, update };
     },

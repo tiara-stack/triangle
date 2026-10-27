@@ -25,10 +25,11 @@ type TriangleWorkspaceProps = {
   isBusy: boolean;
   isRunning: boolean;
   onSideChange: (side: keyof SideValues, value: number | null) => void;
-  onRunCase: () => void;
+  onRunCase: (values: SideValues) => void;
   onResetCase: () => void;
   onChooseAnotherCase: () => void;
   onEditSides: () => void;
+  onViewMatchingCase: (testCase: TriangleCase) => void;
 };
 
 function describeCompletedRun(result: TriangleRun, failureExplanation?: string): string {
@@ -62,6 +63,7 @@ export function TriangleWorkspace({
   onResetCase,
   onChooseAnotherCase,
   onEditSides,
+  onViewMatchingCase,
 }: TriangleWorkspaceProps) {
   const showTriangleDiagram = !isCompactMode || validateSideValues(values) === null;
   const workspaceColumns = showTriangleDiagram
@@ -114,7 +116,12 @@ export function TriangleWorkspace({
               noValidate
               onSubmit={(event) => {
                 event.preventDefault();
-                onRunCase();
+                const submittedValues = new FormData(event.currentTarget);
+                onRunCase({
+                  a: String(submittedValues.get("a") ?? ""),
+                  b: String(submittedValues.get("b") ?? ""),
+                  c: String(submittedValues.get("c") ?? ""),
+                });
               }}
             >
               <VStack gap={isNarrow ? 2 : 3}>
@@ -122,7 +129,7 @@ export function TriangleWorkspace({
                   <Heading level={3} id="input-panel-title">Side lengths</Heading>
                   <Text color="secondary" type="supporting">
                     {isCompactMode || activeCase.source === "custom"
-                      ? "Whole numbers from 1 to 200."
+                      ? "Use whole numbers. Values outside 1–200 should be reported as out of range."
                       : "Built-in values are fixed. Add a custom case to change them."}
                   </Text>
                 </VStack>
@@ -130,14 +137,13 @@ export function TriangleWorkspace({
                   {(["a", "b", "c"] as const).map((side) => (
                     <NumberInput
                       hasClear={isCompactMode || activeCase.source === "custom"}
+                      htmlName={side}
                       isDisabled={isBusy}
                       isIntegerOnly
                       isReadOnly={!isCompactMode && activeCase.source !== "custom"}
                       isWheelEnabled={false}
                       key={side}
                       label={"Side " + side}
-                      max={200}
-                      min={1}
                       onChange={(value: number | null) => onSideChange(side, value)}
                       controlStyle={isCompactMode || activeCase.source === "custom" ? undefined : {
                         backgroundColor: "var(--triangle-lab-neutral-wash)",
@@ -228,9 +234,19 @@ export function TriangleWorkspace({
                   </HStack>
                 )}
                 {result?.failed && (isCompactMode || activeCase.failureExplanation) && (
-                  <Text color="secondary" type="supporting">
-                    {isCompactMode ? directEntryMismatchExplanation : activeCase.failureExplanation}
-                  </Text>
+                  <VStack gap={1}>
+                    <Text color="secondary" type="supporting">
+                      {isCompactMode ? directEntryMismatchExplanation : activeCase.failureExplanation}
+                    </Text>
+                    {isCompactMode && matchingVerifiedDefect && (
+                      <Button
+                        isDisabled={isBusy}
+                        label={"View “" + matchingVerifiedDefect.name + "” case"}
+                        onClick={() => onViewMatchingCase(matchingVerifiedDefect)}
+                        variant="secondary"
+                      />
+                    )}
+                  </VStack>
                 )}
                 {result && isNarrow && !isCompactMode && (
                   <Button

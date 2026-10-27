@@ -13,6 +13,7 @@ import { VStack } from "@astryxdesign/core/VStack";
 import type { CaseFilterOption, LabState } from "../../lib/labState";
 import type { BatchProgress } from "../../lib/labState";
 import type { CaseId, CaseSource, TriangleCase } from "../../lib/triangle";
+import { verifiedDefectForValues } from "./presentation";
 
 type CaseLibraryState = Pick<
   LabState,
@@ -25,6 +26,7 @@ type CaseLibraryState = Pick<
   | "history"
   | "isDirty"
   | "isCaseToolsOpen"
+  | "isAdvancedFiltersOpen"
 >;
 
 type CaseLibraryProps = {
@@ -45,6 +47,7 @@ type CaseLibraryProps = {
   onEditCustomCase: (testCase: TriangleCase) => void;
   onRequestDeleteCase: () => void;
   onCaseToolsVisibilityChange: (isOpen: boolean) => void;
+  onAdvancedFiltersVisibilityChange: (isOpen: boolean) => void;
 };
 
 const sourceCaseFilters = ["example:defect", "example:success", "custom"] as const;
@@ -112,6 +115,7 @@ function describeVisibleCaseCount(visibleCount: number, totalCount: number): str
 
 function statusLabel(status: string): string {
   if (status === "not-run") return "Not run";
+  if (status === "matched-manually") return "Matched by direct input";
   if (status === "modified") return "Edited";
   if (status === "passed") return "Matches expected";
   return "Classifier mismatch";
@@ -142,24 +146,53 @@ export function CaseLibrary({
   onEditCustomCase,
   onRequestDeleteCase,
   onCaseToolsVisibilityChange,
+  onAdvancedFiltersVisibilityChange,
 }: CaseLibraryProps) {
   const groupedCaseFilterOptions = groupFilterOptions(caseFilterOptions);
   const visibleCaseGroups = groupVisibleCases(visibleCases);
+  const selectedSourceFilters = state.caseFilters.filter((filter) =>
+    sourceCaseFilters.includes(filter as (typeof sourceCaseFilters)[number]),
+  );
+  const selectedAdvancedFilters = state.caseFilters.filter((filter) =>
+    !sourceCaseFilters.includes(filter as (typeof sourceCaseFilters)[number]),
+  );
   const hasAllBuiltInExamplesSelected =
-    state.caseFilters.length === 2 &&
-    state.caseFilters.includes("example:defect") &&
-    state.caseFilters.includes("example:success");
+    selectedSourceFilters.length === 2 &&
+    selectedSourceFilters.includes("example:defect") &&
+    selectedSourceFilters.includes("example:success");
   const hasRunLibraryCase = state.history.some((run) => run.caseId !== "manual-input");
-  const filterOptions = groupedCaseFilterOptions.map(([group, options]) => ({
-    type: "section" as const,
-    title: group,
-    options: options.map((option) => ({
+  const sourceFilterOptions = caseFilterOptions
+    .filter((option) => sourceCaseFilters.includes(option.value as (typeof sourceCaseFilters)[number]))
+    .map((option) => ({
       value: option.value,
       label: option.label + " (" + option.count + ")",
       disabled: option.count === 0,
-    })),
-  }));
+    }));
+  const advancedFilterOptions = groupedCaseFilterOptions
+    .filter(([group]) => group !== "Case source")
+    .map(([group, options]) => ({
+      type: "section" as const,
+      title: group,
+      options: options.map((option) => ({
+        value: option.value,
+        label: option.label + " (" + option.count + ")",
+        disabled: option.count === 0,
+      })),
+    }));
+  const advancedFilterCount = caseFilterOptions.length - sourceFilterOptions.length;
   const activeCase = state.cases.find((testCase) => testCase.id === state.activeCaseId)!;
+  const lastRun = state.history.at(-1);
+  const manuallyMatchedCase = lastRun?.caseId === "manual-input" && lastRun.result.failed
+    ? verifiedDefectForValues(lastRun.result.values)
+    : undefined;
+
+  function updateSourceFilters(filters: ReadonlyArray<string>) {
+    onUpdateCaseFilters([...filters, ...selectedAdvancedFilters]);
+  }
+
+  function updateAdvancedFilters(filters: ReadonlyArray<string>) {
+    onUpdateCaseFilters([...selectedSourceFilters, ...filters]);
+  }
 
   const caseList = visibleCases.length > 0 ? (
     <VStack className="lab-case-groups" gap={2}>
@@ -177,7 +210,9 @@ export function CaseLibrary({
               const isActive = state.activeCaseId === testCase.id;
               const selectorRef = getCaseSelectorRef(testCase.id);
               const values = state.valuesByCaseId[testCase.id];
-              const status = state.isDirty && isActive ? "modified" : state.statuses[testCase.id];
+              const status = manuallyMatchedCase?.id === testCase.id
+                ? "matched-manually"
+                : state.isDirty && isActive ? "modified" : state.statuses[testCase.id];
               const label = statusLabel(status);
               const isRecommendedStart =
                 !hasRunLibraryCase && testCase.id === state.cases[0]?.id;
@@ -280,19 +315,54 @@ export function CaseLibrary({
         <MultiSelector
           description={hasAllBuiltInExamplesSelected
             ? "Includes 3 defects and 3 passing examples."
-            : "Filter by source or tag."}
+            : "Choose which case types to show."}
           hasClear
           isDisabled={isBusy}
-          label="Filter cases"
-          onChange={onUpdateCaseFilters}
-          options={filterOptions}
-          placeholder="All cases"
+          label="Case types"
+          onChange={updateSourceFilters}
+          options={[{ type: "section" as const, title: "Case type", options: sourceFilterOptions }]}
+          placeholder="All case types"
           presentation="adaptive"
           triggerDisplay="labels"
           formatValue={formatSelectedFilters}
-          value={[...state.caseFilters]}
+          value={selectedSourceFilters}
           width="100%"
         />
+
+        {advancedFilterCount > 0 && (
+          <Collapsible
+            className="lab-advanced-filters"
+            isDisabled={isBusy}
+            isOpen={state.isAdvancedFiltersOpen}
+            onOpenChange={onAdvancedFiltersVisibilityChange}
+            trigger={(
+              <HStack align="center" gap={2} width="100%">
+                <Text type="label">More filters</Text>
+                {selectedAdvancedFilters.length > 0 && (
+                  <Text color="secondary" type="supporting">
+                    {selectedAdvancedFilters.length} selected
+                  </Text>
+                )}
+              </HStack>
+            )}
+          >
+            <MultiSelector
+              description="Combine result, output, defect, and custom tag filters."
+              hasClear
+              hasSearch={advancedFilterCount > 12}
+              isDisabled={isBusy}
+              label="Filter by tags"
+              onChange={updateAdvancedFilters}
+              options={advancedFilterOptions}
+              placeholder="No tag filters"
+              presentation="adaptive"
+              triggerDisplay="labels"
+              formatValue={formatSelectedFilters}
+              value={selectedAdvancedFilters}
+              width="100%"
+            />
+          </Collapsible>
+        )}
 
         <Collapsible
           className="lab-case-tools"

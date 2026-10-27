@@ -73,6 +73,7 @@ export const LabStateFields = {
   isCustomCaseDialogOpen: Schema.Boolean,
   isMobileCaseLibraryOpen: Schema.Boolean,
   isCaseToolsOpen: Schema.Boolean,
+  isAdvancedFiltersOpen: Schema.Boolean,
   isHistoryDrawerOpen: Schema.Boolean,
   isDeleteDialogOpen: Schema.Boolean,
 } as const;
@@ -128,6 +129,7 @@ export function createInitialLabState(): LabState {
     isCustomCaseDialogOpen: false,
     isMobileCaseLibraryOpen: false,
     isCaseToolsOpen: false,
+    isAdvancedFiltersOpen: false,
     isHistoryDrawerOpen: false,
     isDeleteDialogOpen: false,
   };
