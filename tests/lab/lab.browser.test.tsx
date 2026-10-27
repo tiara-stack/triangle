@@ -1,8 +1,11 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { renderLab } from "../helpers/renderLab";
-import { installClassifierFetch } from "../helpers/classifierFetch";
+import { disposeClassifierFetch, installClassifierFetch } from "../helpers/classifierFetch";
 
-afterAll(() => vi.unstubAllGlobals());
+afterAll(async () => {
+  vi.unstubAllGlobals();
+  await disposeClassifierFetch();
+});
 
 describe("Triangle Test Lab", () => {
   it("loads both example groups, runs the recommended case, and records a session run", async () => {

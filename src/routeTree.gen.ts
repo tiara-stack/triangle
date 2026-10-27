@@ -10,43 +10,33 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiTriangleRunRouteImport } from './routes/api/triangle/run'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiTriangleRunRoute = ApiTriangleRunRouteImport.update({
-  id: '/api/triangle/run',
-  path: '/api/triangle/run',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/api/triangle/run': typeof ApiTriangleRunRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/api/triangle/run': typeof ApiTriangleRunRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/api/triangle/run': typeof ApiTriangleRunRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/triangle/run'
+  fullPaths: '/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/triangle/run'
-  id: '__root__' | '/' | '/api/triangle/run'
+  to: '/'
+  id: '__root__' | '/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApiTriangleRunRoute: typeof ApiTriangleRunRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,19 +48,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/triangle/run': {
-      id: '/api/triangle/run'
-      path: '/api/triangle/run'
-      fullPath: '/api/triangle/run'
-      preLoaderRoute: typeof ApiTriangleRunRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApiTriangleRunRoute: ApiTriangleRunRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
