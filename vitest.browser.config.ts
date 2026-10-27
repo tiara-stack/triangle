@@ -9,7 +9,9 @@ export default defineConfig({
     setupFiles: ["tests/setup.browser.ts"],
     browser: {
       enabled: true,
-      provider: playwright(),
+      provider: playwright({
+        contextOptions: { viewport: { width: 1280, height: 800 } },
+      }),
       instances: [{ browser: "chromium" }],
     },
   },

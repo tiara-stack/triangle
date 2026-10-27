@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { renderLab } from "../helpers/renderLab";
 import { installClassifierFetch } from "../helpers/classifierFetch";
 
-afterEach(() => vi.unstubAllGlobals());
+afterAll(() => vi.unstubAllGlobals());
 
 const defectExamples = [
   {
@@ -57,7 +57,7 @@ describe("performative defect checks through the user interface", () => {
     }
     await screen.getByRole("button", { name: "Run test" }).click();
 
-    await expect.element(screen.getByText("Value is out of range")).toBeVisible();
+    await expect.element(screen.getByRole("heading", { name: "Value is out of range" }).first()).toBeVisible();
     await expect.element(screen.getByText("Run complete · Matches expected")).toBeVisible();
     expect(requests.at(-1)).toEqual({ a: values[0], b: values[1], c: values[2] });
   });
