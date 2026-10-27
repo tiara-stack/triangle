@@ -18,9 +18,9 @@ function TriangleDiagramFallback({ values, ready }: TriangleDiagramProps & { rea
 
   if (model.kind === "incomplete") {
     return (
-      <svg aria-hidden="true" className={`${className} triangle-fallback--invalid`} viewBox="0 0 240 220">
+      <svg aria-hidden="true" className={className} viewBox="0 0 240 220">
         <text className="triangle-fallback__state-label" x="120" y="115" textAnchor="middle">
-          Enter whole sides
+          Enter side lengths
         </text>
       </svg>
     );

@@ -16,7 +16,7 @@ type RouterContext = {
 };
 
 const directionContract = [
-  "THESIS: A compact hands-on test sheet lists three verified Triangle defects and three valid controls, then compares the expected and faulty outputs for the selected case.",
+  "THESIS: A compact hands-on test sheet lists three verified Triangle defects and three passing examples, then compares the expected and faulty outputs for the selected case.",
   "OWN-WORLD: Bright white exercise sheet, cobalt section bands, deep ink, precise answer boxes, and vermilion instructor marks.",
   "STORY: Choose one of six cases, edit three side values, run the faulty classifier, and compare its output with the rule-based oracle.",
   "FIRST VIEWPORT: A six-case list sits left; the active side inputs and triangle diagram sit above expected and observed results.",

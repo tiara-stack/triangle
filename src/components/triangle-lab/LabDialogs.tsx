@@ -50,7 +50,7 @@ export function CustomCaseDialog({
         onOpenChange={(nextIsOpen) => {
           if (!nextIsOpen) onClose();
         }}
-        subtitle="Whole-number sides from 1 to 200. Built-in examples stay fixed."
+        subtitle="Custom cases stay in this session only. Use whole-number sides from 1 to 200."
         title={draft.editingCaseId ? "Edit case details" : "New custom case"}
       />
       <form noValidate onSubmit={onSubmit}>

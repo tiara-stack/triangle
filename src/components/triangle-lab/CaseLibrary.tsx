@@ -12,7 +12,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { CaseFilterOption, LabState } from "../../lib/labState";
 import type { BatchProgress } from "../../lib/labState";
-import type { CaseId, TriangleCase } from "../../lib/triangle";
+import type { CaseId, CaseSource, TriangleCase } from "../../lib/triangle";
 
 type CaseLibraryState = Pick<
   LabState,
@@ -22,6 +22,7 @@ type CaseLibraryState = Pick<
   | "activeCaseId"
   | "valuesByCaseId"
   | "statuses"
+  | "history"
   | "isDirty"
   | "isCaseToolsOpen"
 >;
@@ -60,13 +61,46 @@ function groupFilterOptions(options: ReadonlyArray<CaseFilterOption>) {
 
 function formatSelectedFilters(items: ReadonlyArray<{ value: string; label: string }>): string {
   const selectedValues = new Set(items.map(({ value }) => value));
-  if (selectedValues.has("example:defect") && selectedValues.has("example:success")) {
-    return "Defects + successes";
+  if (
+    selectedValues.has("example:defect") &&
+    selectedValues.has("example:success") &&
+    selectedValues.size === 2
+  ) {
+    return "All 6 examples";
+  }
+  if (
+    selectedValues.has("example:defect") &&
+    selectedValues.has("example:success") &&
+    selectedValues.has("custom") &&
+    selectedValues.size === 3
+  ) {
+    return "All case types";
   }
 
   const labels = items.map(({ label }) => label.replace(/\s+\(\d+\)$/, ""));
   if (labels.length <= 2) return labels.join(", ");
   return labels.slice(0, 2).join(", ") + " +" + (labels.length - 2) + " more";
+}
+
+const caseGroupLabels: Record<CaseSource, string> = {
+  "example:defect": "Defects",
+  "example:success": "Passing examples",
+  custom: "Custom cases",
+};
+
+function groupVisibleCases(cases: ReadonlyArray<TriangleCase>) {
+  const groups = new Map<CaseSource, Array<TriangleCase>>();
+  for (const testCase of cases) {
+    const group = groups.get(testCase.source) ?? [];
+    group.push(testCase);
+    groups.set(testCase.source, group);
+  }
+
+  return [...groups.entries()].map(([source, groupedCases]) => ({
+    source,
+    label: caseGroupLabels[source],
+    cases: groupedCases,
+  }));
 }
 
 function describeVisibleCaseCount(visibleCount: number, totalCount: number): string {
@@ -79,8 +113,8 @@ function describeVisibleCaseCount(visibleCount: number, totalCount: number): str
 function statusLabel(status: string): string {
   if (status === "not-run") return "Not run";
   if (status === "modified") return "Edited";
-  if (status === "passed") return "Passed";
-  return "Failed";
+  if (status === "passed") return "Matches expected";
+  return "Classifier mismatch";
 }
 
 function statusVariant(status: string): "neutral" | "warning" | "success" | "error" {
@@ -110,6 +144,12 @@ export function CaseLibrary({
   onCaseToolsVisibilityChange,
 }: CaseLibraryProps) {
   const groupedCaseFilterOptions = groupFilterOptions(caseFilterOptions);
+  const visibleCaseGroups = groupVisibleCases(visibleCases);
+  const hasAllBuiltInExamplesSelected =
+    state.caseFilters.length === 2 &&
+    state.caseFilters.includes("example:defect") &&
+    state.caseFilters.includes("example:success");
+  const hasRunLibraryCase = state.history.some((run) => run.caseId !== "manual-input");
   const filterOptions = groupedCaseFilterOptions.map(([group, options]) => ({
     type: "section" as const,
     title: group,
@@ -122,72 +162,95 @@ export function CaseLibrary({
   const activeCase = state.cases.find((testCase) => testCase.id === state.activeCaseId)!;
 
   const caseList = visibleCases.length > 0 ? (
-    <List density="compact" edge="padded" hasDividers>
-      {visibleCases.map((testCase) => {
-        const index = state.cases.findIndex((item) => item.id === testCase.id);
-        const isActive = state.activeCaseId === testCase.id;
-        const selectorRef = getCaseSelectorRef(testCase.id);
-        const values = state.valuesByCaseId[testCase.id];
-        const status = state.isDirty && isActive ? "modified" : state.statuses[testCase.id];
-        const label = statusLabel(status);
+    <VStack className="lab-case-groups" gap={2}>
+      {visibleCaseGroups.map((group) => (
+        <VStack className="lab-case-group" gap={0.5} key={group.source}>
+          <HStack align="center" justify="between">
+            <Heading level={3}>{group.label}</Heading>
+            <Text color="secondary" type="supporting">
+              {group.cases.length} {group.cases.length === 1 ? "case" : "cases"}
+            </Text>
+          </HStack>
+          <List density="compact" edge="padded" hasDividers>
+            {group.cases.map((testCase) => {
+              const index = state.cases.findIndex((item) => item.id === testCase.id);
+              const isActive = state.activeCaseId === testCase.id;
+              const selectorRef = getCaseSelectorRef(testCase.id);
+              const values = state.valuesByCaseId[testCase.id];
+              const status = state.isDirty && isActive ? "modified" : state.statuses[testCase.id];
+              const label = statusLabel(status);
+              const isRecommendedStart =
+                !hasRunLibraryCase && testCase.id === state.cases[0]?.id;
 
-        return (
-          <ListItem
-            align="first-line"
-            className="lab-case-row"
-            description={(
-              <VStack gap={0.5}>
-                {testCase.description && (
-                  <Text color="secondary" type="supporting">{testCase.description}</Text>
-                )}
-                <Text color="secondary" type="supporting">
-                  Sides: {values.a}, {values.b}, {values.c}
-                </Text>
-                {!isNarrow && (
-                  <HStack align="center" gap={1}>
-                    <StatusDot label={label} variant={statusVariant(status)} />
-                    <Text color="secondary" type="supporting">{label}</Text>
-                  </HStack>
-                )}
-              </VStack>
-            )}
-            endContent={isNarrow ? (
-              <HStack align="center" gap={1}>
-                <StatusDot label={label} variant={statusVariant(status)} />
-                <Text color="secondary" type="supporting">{label}</Text>
-              </HStack>
-            ) : undefined}
-            interactiveRef={selectorRef}
-            isDisabled={isBusy}
-            isSelected={isActive}
-            key={testCase.id}
-            label={(
-              <Button
-                className="lab-case-selector"
-                id={"case-selector-" + testCase.id}
-                isDisabled={isBusy}
-                label={"Test " + (index + 1) + ": " + testCase.name + ", sides " + values.a + ", " + values.b + ", " + values.c + ", " + label.toLowerCase()}
-                onClick={() => onSelectCase(testCase)}
-                ref={selectorRef}
-                variant="ghost"
-                width="100%"
-              >
-                {testCase.name}
-              </Button>
-            )}
-            startContent={state.isCaseToolsOpen ? (
-              <CheckboxInput
-                isDisabled={isBusy}
-                isLabelHidden
-                label={"Select " + testCase.name + " for a batch run"}
-                onChange={() => onToggleCaseForBatch(testCase.id)}
-                value={state.selectedCaseIds.includes(testCase.id)}
-              />
-            ) : undefined}
-          />
-        );
-      })}
-    </List>
+              return (
+                <ListItem
+                  align="first-line"
+                  className="lab-case-row"
+                  description={(
+                    <VStack gap={0.5}>
+                      {testCase.description && (
+                        <Text color="secondary" type="supporting">{testCase.description}</Text>
+                      )}
+                      <HStack align="center" gap={1} justify="between" wrap="nowrap">
+                        <Text color="secondary" type="supporting">
+                          Sides: {values.a}, {values.b}, {values.c}
+                        </Text>
+                        {!isNarrow && (
+                          <HStack align="center" gap={1}>
+                            <StatusDot label={label} variant={statusVariant(status)} />
+                            <Text color="secondary" type="supporting">{label}</Text>
+                          </HStack>
+                        )}
+                      </HStack>
+                    </VStack>
+                  )}
+                  endContent={isNarrow ? (
+                    <HStack align="center" gap={1}>
+                      <StatusDot label={label} variant={statusVariant(status)} />
+                      <Text color="secondary" type="supporting">{label}</Text>
+                    </HStack>
+                  ) : undefined}
+                  interactiveRef={selectorRef}
+                  isDisabled={isBusy}
+                  isSelected={isActive}
+                  key={testCase.id}
+                  label={(
+                    <Button
+                      className="lab-case-selector"
+                      id={"case-selector-" + testCase.id}
+                      isDisabled={isBusy}
+                      label={"Test " + (index + 1) + ": " + testCase.name +
+                        (isRecommendedStart ? ", recommended first case" : "") +
+                        ", sides " + values.a + ", " + values.b + ", " + values.c + ", " + label.toLowerCase()}
+                      onClick={() => onSelectCase(testCase)}
+                      ref={selectorRef}
+                      variant="ghost"
+                      width="100%"
+                    >
+                      {isRecommendedStart ? (
+                        <HStack align="center" gap={1} justify="between" width="100%">
+                          <Text type="label">{testCase.name}</Text>
+                          <Text color="secondary" type="supporting">Start here</Text>
+                        </HStack>
+                      ) : testCase.name}
+                    </Button>
+                  )}
+                  startContent={state.isCaseToolsOpen ? (
+                    <CheckboxInput
+                      isDisabled={isBusy}
+                      isLabelHidden
+                      label={"Select " + testCase.name + " for a batch run"}
+                      onChange={() => onToggleCaseForBatch(testCase.id)}
+                      value={state.selectedCaseIds.includes(testCase.id)}
+                    />
+                  ) : undefined}
+                />
+              );
+            })}
+          </List>
+        </VStack>
+      ))}
+    </VStack>
   ) : (
     <Text color="secondary" type="supporting">
       No cases match these filters. Clear the selected tags to show all cases.
@@ -204,8 +267,20 @@ export function CaseLibrary({
           </Text>
         </HStack>
 
+        {!isNarrow && (
+          <Button
+            isDisabled={isBusy}
+            label="Add custom case"
+            onClick={onAddCustomCase}
+            variant="secondary"
+            width="100%"
+          />
+        )}
+
         <MultiSelector
-          description="Filter by source or tag."
+          description={hasAllBuiltInExamplesSelected
+            ? "Includes 3 defects and 3 passing examples."
+            : "Filter by source or tag."}
           hasClear
           isDisabled={isBusy}
           label="Filter cases"
@@ -237,14 +312,6 @@ export function CaseLibrary({
         >
           <VStack gap={2}>
             <HStack align="center" gap={2} wrap="wrap">
-              {!isNarrow && (
-                <Button
-                  isDisabled={isBusy}
-                  label="Add custom case"
-                  onClick={onAddCustomCase}
-                  variant="secondary"
-                />
-              )}
               <Button
                 isDisabled={isBusy || state.selectedCaseIds.length === 0}
                 isLoading={Boolean(batchProgress)}

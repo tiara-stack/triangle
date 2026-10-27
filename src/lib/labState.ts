@@ -43,6 +43,7 @@ const BatchProgressSchema = Schema.Struct({
 });
 
 export const LabStateFields = {
+  viewMode: Schema.Literals(["library", "compact"]),
   cases: Schema.Array(TriangleCaseSchema),
   caseFilters: Schema.Array(Schema.String),
   selectedCaseIds: Schema.Array(Schema.String),
@@ -59,6 +60,7 @@ export const LabStateFields = {
   runError: Schema.NullOr(Schema.String),
   lastRunMode: Schema.NullOr(Schema.Literals(["single", "batch"])),
   inputError: Schema.NullOr(SideInputErrorSchema),
+  quickValues: SideValuesSchema,
   customCaseDraft: Schema.Struct({
     name: Schema.String,
     description: Schema.String,
@@ -90,6 +92,7 @@ const firstCase = verifiedCases[0];
 
 export function createInitialLabState(): LabState {
   return {
+    viewMode: "library",
     cases: labCases,
     caseFilters: ["example:defect", "example:success"],
     selectedCaseIds: [],
@@ -112,6 +115,7 @@ export function createInitialLabState(): LabState {
     runError: null,
     lastRunMode: null,
     inputError: null,
+    quickValues: { a: "", b: "", c: "" },
     customCaseDraft: {
       name: "",
       description: "",
@@ -142,7 +146,7 @@ function filterGroupForTag(filter: string): string {
 
 function labelForFilter(filter: string): string {
   if (filter === "example:defect") return "Verified defects";
-  if (filter === "example:success") return "Valid controls";
+  if (filter === "example:success") return "Passing examples";
   if (filter === "custom") return "Custom cases";
   const capitalize = (value: string) => value.replace(/^\w/, (letter) => letter.toUpperCase());
   if (filter.startsWith("example:output:expected:")) {

@@ -21,40 +21,47 @@ export function RunHistory({ history, isNarrow, isOpen, onOpenChange }: RunHisto
   const historyCount = `This session · ${history.length} ${history.length === 1 ? "run" : "runs"}`;
   const historyRecords = history.length > 0 ? (
     <List density="compact" edge="flush" hasDividers>
-      {history.map((run) => (
-        <ListItem
-          align="first-line"
-          description={(
-            <VStack gap={0.5}>
-              <Text color="secondary" type="supporting">
-                Sides: {run.result.values.a}, {run.result.values.b}, {run.result.values.c}
-              </Text>
-              <Text color="secondary" type="supporting">
-                Expected: {displayTriangleOutput(run.result.expected)}
-              </Text>
-              <Text color="secondary" type="supporting">
-                Observed: {displayTriangleOutput(run.result.observed)}
-              </Text>
-            </VStack>
-          )}
-          endContent={(
-            <HStack align="center" gap={1}>
-              <StatusDot
-                label={run.result.failed ? "Assertion failed" : "Assertion passed"}
-                variant={run.result.failed ? "error" : "success"}
-              />
-              <Text type="supporting">{run.result.failed ? "Failed" : "Passed"}</Text>
-            </HStack>
-          )}
-          key={run.id}
-          label={(
-            <HStack align="center" gap={2}>
-              <Text hasTabularNumbers type="label">Run {String(run.id).padStart(2, "0")}</Text>
-              <Text type="body">{run.name}</Text>
-            </HStack>
-          )}
-        />
-      ))}
+      {history.map((run) => {
+        const outcomeLabel = run.result.failed ? "Classifier mismatch" : "Matches expected";
+        const outcomeAccessibleLabel = run.result.failed
+          ? "Classifier mismatch"
+          : "Matches expected";
+
+        return (
+          <ListItem
+            align="first-line"
+            description={(
+              <VStack gap={0.5}>
+                <Text color="secondary" type="supporting">
+                  Sides: {run.result.values.a}, {run.result.values.b}, {run.result.values.c}
+                </Text>
+                <Text color="secondary" type="supporting">
+                  Expected: {displayTriangleOutput(run.result.expected)}
+                </Text>
+                <Text color="secondary" type="supporting">
+                  Observed: {displayTriangleOutput(run.result.observed)}
+                </Text>
+              </VStack>
+            )}
+            endContent={(
+              <HStack align="center" gap={1}>
+                <StatusDot
+                  label={outcomeAccessibleLabel}
+                  variant={run.result.failed ? "error" : "success"}
+                />
+                <Text type="supporting">{outcomeLabel}</Text>
+              </HStack>
+            )}
+            key={run.id}
+            label={(
+              <HStack align="center" gap={2}>
+                <Text hasTabularNumbers type="label">Run {String(run.id).padStart(2, "0")}</Text>
+                <Text type="body">{run.name}</Text>
+              </HStack>
+            )}
+          />
+        );
+      })}
     </List>
   ) : (
     <Text color="secondary" type="supporting">
@@ -70,7 +77,18 @@ export function RunHistory({ history, isNarrow, isOpen, onOpenChange }: RunHisto
             <Heading level={2} id="run-ledger-title">Run history</Heading>
             <Text color="secondary" type="supporting">{historyCount}</Text>
           </HStack>
-          {historyRecords}
+          <Collapsible
+            className="lab-mobile-history"
+            isOpen={isOpen}
+            onOpenChange={onOpenChange}
+            trigger={(
+              <HStack align="center" gap={2} width="100%">
+                <Text type="label">{isOpen ? "Hide runs" : "Show runs"}</Text>
+              </HStack>
+            )}
+          >
+            {historyRecords}
+          </Collapsible>
         </VStack>
       </Section>
     );

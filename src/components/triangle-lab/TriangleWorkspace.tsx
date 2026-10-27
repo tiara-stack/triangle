@@ -9,13 +9,14 @@ import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { TriangleDiagram } from "../TriangleDiagram";
-import type { SideInputError, SideValues, TriangleCase, TriangleRun } from "../../lib/triangle";
-import { displayTriangleOutput, sideValue } from "./presentation";
+import { validateSideValues, type SideInputError, type SideValues, type TriangleCase, type TriangleRun } from "../../lib/triangle";
+import { displayTriangleOutput, sideValue, verifiedDefectForValues } from "./presentation";
 
 type TriangleWorkspaceProps = {
   activeCase: TriangleCase;
   activeCaseNumber: number;
   caseCount: number;
+  isCompactMode: boolean;
   values: SideValues;
   result: TriangleRun | null;
   inputError: SideInputError | null;
@@ -26,12 +27,29 @@ type TriangleWorkspaceProps = {
   onSideChange: (side: keyof SideValues, value: number | null) => void;
   onRunCase: () => void;
   onResetCase: () => void;
+  onChooseAnotherCase: () => void;
+  onEditSides: () => void;
 };
+
+function describeCompletedRun(result: TriangleRun, failureExplanation?: string): string {
+  const expected = displayTriangleOutput(result.expected);
+  const observed = displayTriangleOutput(result.observed);
+
+  if (result.failed && failureExplanation) {
+    return `Run complete. Expected ${expected}. Observed ${observed}. The classifier returned a different result. ${failureExplanation}`;
+  }
+  if (result.failed) {
+    return `Run complete. Expected ${expected}. Observed ${observed}. The classifier returned a different result.`;
+  }
+
+  return `Run complete. The classifier output matches the expected result: ${expected}.`;
+}
 
 export function TriangleWorkspace({
   activeCase,
   activeCaseNumber,
   caseCount,
+  isCompactMode,
   values,
   result,
   inputError,
@@ -42,30 +60,54 @@ export function TriangleWorkspace({
   onSideChange,
   onRunCase,
   onResetCase,
+  onChooseAnotherCase,
+  onEditSides,
 }: TriangleWorkspaceProps) {
+  const showTriangleDiagram = !isCompactMode || validateSideValues(values) === null;
+  const workspaceColumns = showTriangleDiagram
+    ? { minWidth: 220, max: 2 } as const
+    : { minWidth: 220, max: 1 } as const;
+  const matchingVerifiedDefect = isCompactMode && result?.failed
+    ? verifiedDefectForValues(result.values)
+    : undefined;
+  const directEntryMismatchExplanation = matchingVerifiedDefect?.failureExplanation
+    ? `This matches the verified defect “${matchingVerifiedDefect.name}”: ${matchingVerifiedDefect.failureExplanation}`
+    : "The classifier output differs from the triangle rules for these side lengths.";
+  const resultFailureExplanation = isCompactMode
+    ? result?.failed ? directEntryMismatchExplanation : undefined
+    : activeCase.failureExplanation;
+
   return (
-    <Section className="lab-workspace" aria-label="Selected test case workspace" padding={isNarrow ? 2 : 3}>
+    <Section
+      className="lab-workspace"
+      aria-label={isCompactMode ? "Triangle test workspace" : "Selected test case workspace"}
+      padding={isNarrow ? 2 : 3}
+    >
       <VStack gap={isNarrow ? 2 : 3}>
         <HStack className="lab-sheet-band" align="start" justify="between" gap={2}>
           <VStack gap={0.5}>
-            <Heading className="lab-sheet-title" level={2}>{activeCase.name}</Heading>
-            {activeCase.description && (
+            <Heading className="lab-sheet-title" level={2}>
+              {isCompactMode ? "Enter side lengths" : activeCase.name}
+            </Heading>
+            {!isCompactMode && activeCase.description && (
               <Text color="secondary" type="supporting">{activeCase.description}</Text>
             )}
           </VStack>
-          <Text className="lab-sheet-count" color="secondary" type="supporting">
-            Case {activeCaseNumber} of {caseCount}
-          </Text>
+          {!isCompactMode && (
+            <Text className="lab-sheet-count" color="secondary" type="supporting">
+              Case {activeCaseNumber} of {caseCount}
+            </Text>
+          )}
         </HStack>
 
-        {!result && activeCase.failureExplanation && (
+        {!isCompactMode && !result && activeCase.failureExplanation && (
           <VStack className="lab-case-rationale" gap={0.5}>
             <Text color="secondary" type="label">What this case checks</Text>
             <Text color="secondary" type="supporting">{activeCase.failureExplanation}</Text>
           </VStack>
         )}
 
-        <Grid align="start" columns={{ minWidth: 220, max: 2 }} gap={isNarrow ? 3 : 4}>
+        <Grid align="start" columns={workspaceColumns} gap={isNarrow ? 3 : 4}>
           <VStack gap={isNarrow ? 3 : 4}>
             <form
               aria-labelledby="input-panel-title"
@@ -79,7 +121,7 @@ export function TriangleWorkspace({
                 <VStack gap={0.5}>
                   <Heading level={3} id="input-panel-title">Side lengths</Heading>
                   <Text color="secondary" type="supporting">
-                    {activeCase.source === "custom"
+                    {isCompactMode || activeCase.source === "custom"
                       ? "Whole numbers from 1 to 200."
                       : "Built-in values are fixed. Add a custom case to change them."}
                   </Text>
@@ -87,17 +129,17 @@ export function TriangleWorkspace({
                 <Grid columns={{ minWidth: 88, max: 3 }} gap={2}>
                   {(["a", "b", "c"] as const).map((side) => (
                     <NumberInput
-                      hasClear={activeCase.source === "custom"}
+                      hasClear={isCompactMode || activeCase.source === "custom"}
                       isDisabled={isBusy}
                       isIntegerOnly
-                      isReadOnly={activeCase.source !== "custom"}
+                      isReadOnly={!isCompactMode && activeCase.source !== "custom"}
                       isWheelEnabled={false}
                       key={side}
                       label={"Side " + side}
                       max={200}
                       min={1}
                       onChange={(value: number | null) => onSideChange(side, value)}
-                      controlStyle={activeCase.source === "custom" ? undefined : {
+                      controlStyle={isCompactMode || activeCase.source === "custom" ? undefined : {
                         backgroundColor: "var(--triangle-lab-neutral-wash)",
                         borderColor: "var(--triangle-lab-line)",
                         cursor: "default",
@@ -114,11 +156,11 @@ export function TriangleWorkspace({
                   <Button
                     isDisabled={isBusy}
                     isLoading={isRunning}
-                    label="Run case"
+                    label={isCompactMode ? "Run test" : "Run case"}
                     type="submit"
                     variant="primary"
                   />
-                  {activeCase.source === "custom" && (
+                  {!isCompactMode && activeCase.source === "custom" && (
                     <Button
                       isDisabled={isBusy}
                       label="Restore saved case"
@@ -130,7 +172,7 @@ export function TriangleWorkspace({
               </VStack>
             </form>
 
-            <Section className="lab-result-panel" aria-labelledby="result-panel-title" id="result-panel" padding={0} variant="muted">
+              <Section className="lab-result-panel" aria-labelledby="result-panel-title" id="result-panel" padding={0} variant="muted">
               <VStack gap={2} padding={isNarrow ? 2 : 3}>
                 <Heading level={3} id="result-panel-title">Result</Heading>
                 {result ? (
@@ -153,8 +195,10 @@ export function TriangleWorkspace({
                 ) : (
                   <Text color="secondary" type="supporting">
                     {hasRunError
-                      ? "Could not run this case. Retry it."
-                      : "Expected comes from triangle rules; observed comes from the faulty classifier."}
+                      ? isCompactMode ? "Could not run this test. Retry it." : "Could not run this case. Retry it."
+                      : isCompactMode
+                        ? "Run the test to compare the expected result with the classifier."
+                        : "Expected comes from triangle rules; observed comes from the faulty classifier."}
                   </Text>
                 )}
                 <Link
@@ -168,43 +212,60 @@ export function TriangleWorkspace({
                 {result && (
                   <HStack
                     aria-atomic="true"
-                    aria-label={
-                      "Expected " + displayTriangleOutput(result.expected) +
-                      ". Observed " + displayTriangleOutput(result.observed) +
-                      ". " + (result.failed ? "Assertion failed." : "Assertion passed.") +
-                      (result.failed && activeCase.failureExplanation ? " " + activeCase.failureExplanation : "")
-                    }
+                    aria-label={describeCompletedRun(result, resultFailureExplanation)}
                     className={result.failed ? "lab-assertion lab-assertion--failed" : "lab-assertion lab-assertion--passed"}
                     align="center"
                     gap={2}
                     role="status"
                   >
                     <StatusDot
-                      label={result.failed ? "Assertion failed" : "Assertion passed"}
+                      label={result.failed ? "Classifier mismatch" : "Output matches expected result"}
                       variant={result.failed ? "error" : "success"}
                     />
                     <Text className="lab-assertion__label" type="label">
-                      {result.failed ? "Assertion failed" : "Assertion passed"}
+                      {result.failed ? "Run complete · Classifier mismatch" : "Run complete · Matches expected"}
                     </Text>
                   </HStack>
                 )}
-                {result?.failed && activeCase.failureExplanation && (
-                  <Text color="secondary" type="supporting">{activeCase.failureExplanation}</Text>
+                {result?.failed && (isCompactMode || activeCase.failureExplanation) && (
+                  <Text color="secondary" type="supporting">
+                    {isCompactMode ? directEntryMismatchExplanation : activeCase.failureExplanation}
+                  </Text>
+                )}
+                {result && isNarrow && !isCompactMode && (
+                  <Button
+                    isDisabled={isBusy}
+                    label="Choose another case"
+                    onClick={onChooseAnotherCase}
+                    variant="secondary"
+                  />
                 )}
                 {hasRunError && (
                   <HStack align="center" gap={2} role="alert">
                     <StatusDot label="Run failed" variant="error" />
-                    <Text type="supporting">Could not run this case. Retry it.</Text>
+                    <Text type="supporting">
+                      {isCompactMode ? "Could not run this test. Retry it." : "Could not run this case. Retry it."}
+                    </Text>
                   </HStack>
                 )}
+                {isCompactMode && isNarrow && (result || hasRunError) && (
+                  <Button
+                    isDisabled={isBusy}
+                    label="Edit sides"
+                    onClick={onEditSides}
+                    variant="secondary"
+                  />
+                )}
               </VStack>
-            </Section>
+              </Section>
           </VStack>
 
-          <VStack gap={2}>
-            <Heading level={3}>Triangle diagram</Heading>
-            <TriangleDiagram values={values} />
-          </VStack>
+          {showTriangleDiagram && (
+            <VStack gap={2}>
+              <Heading level={3}>Triangle diagram</Heading>
+              <TriangleDiagram values={values} />
+            </VStack>
+          )}
         </Grid>
       </VStack>
     </Section>

@@ -45,18 +45,24 @@ const RunBatchStateSchema = Schema.TaggedStruct("RunningBatch", {
   cases: Schema.Array(BatchCaseSchema),
 });
 
+const RunQuickTestStateSchema = Schema.TaggedStruct("RunningQuickTest", {
+  values: SideValuesSchema,
+});
+
 const LabStates = Machine.state({
   fields: LabStateFields,
   states: {
     Ready: {},
     RunningCase: RunCaseStateSchema,
     RunningBatch: RunBatchStateSchema,
+    RunningQuickTest: RunQuickTestStateSchema,
     RunFailed: {},
   },
 });
 
 export const LabEvents = Machine.eventsFromSchemas(
   Schema.TaggedUnion({
+    ViewModeChanged: { mode: Schema.Literals(["library", "compact"]) },
     SelectCase: { caseId: Schema.String },
     UpdateCaseFilters: { filters: Schema.Array(Schema.String) },
     SaveCustomCase: { testCase: TriangleCaseSchema },
@@ -84,8 +90,13 @@ export const LabEvents = Machine.eventsFromSchemas(
       side: Schema.Literals(["a", "b", "c"]),
       value: Schema.String,
     },
+    QuickSideChanged: {
+      side: Schema.Literals(["a", "b", "c"]),
+      value: Schema.String,
+    },
     ResetCase: {},
     RunCase: {},
+    RunQuickTest: {},
     RunSelectedCases: {},
   }),
 );
@@ -320,6 +331,15 @@ function updateSide(lab: LabState, side: keyof SideValues, value: string): LabSt
   });
 }
 
+function updateQuickSide(lab: LabState, side: keyof SideValues, value: string): LabState {
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.quickValues[side] = value;
+    draft.result = null;
+    draft.inputError = null;
+  });
+}
+
 function resetCase(lab: LabState): LabState {
   const testCase = lab.cases.find((candidate) => candidate.id === lab.activeCaseId)!;
   const priorRun = [...lab.history].reverse().find((run) =>
@@ -369,10 +389,42 @@ function recordRun(
   draft.lastRunMode = mode;
 }
 
+function recordQuickRun(draft: Draft<LabState>, result: TriangleRun): void {
+  draft.result = result;
+  draft.history.push({
+    id: draft.history.length + 1,
+    caseId: "manual-input",
+    name: "Manual input",
+    result,
+  });
+  draft.runError = null;
+  draft.lastRunMode = "single";
+}
+
 type RootContext = { readonly root: LabState };
 type RootEventContext<Event> = RootContext & { readonly event: Event };
 
 const presentationTransitions = {
+  ViewModeChanged: {
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly mode: "library" | "compact" }>) => {
+      if (root.viewMode === event.mode) return root;
+
+      return produce(root, (draft) => {
+        clearRunState(draft);
+        draft.viewMode = event.mode;
+        draft.inputError = null;
+        if (event.mode === "library") {
+          draft.values = { ...root.valuesByCaseId[root.activeCaseId] };
+          draft.result = root.resultsByCaseId[root.activeCaseId];
+          draft.isDirty = root.statuses[root.activeCaseId] === "modified";
+        } else {
+          draft.result = null;
+          draft.isDirty = false;
+        }
+      });
+    },
+  },
   OpenNewCustomCaseDialog: {
     update: "root" as const,
     data: ({ root }: RootContext) => openNewCustomCaseDialog(root),
@@ -513,6 +565,14 @@ const syncTransitions = {
       update: updateSide(root, event.side, event.value),
     }),
   },
+  QuickSideChanged: {
+    target: "Ready" as const,
+    update: "root" as const,
+    data: ({ root, event }: RootEventContext<{ readonly side: keyof SideValues; readonly value: string }>) => ({
+      target: undefined,
+      update: updateQuickSide(root, event.side, event.value),
+    }),
+  },
   ResetCase: {
     target: "Ready" as const,
     update: "root" as const,
@@ -545,6 +605,19 @@ const runTransitions = {
         },
         update,
       };
+    },
+  },
+  RunQuickTest: {
+    target: "RunningQuickTest" as const,
+    update: "root" as const,
+    data: ({ root }: RootContext) => {
+      const values = { ...root.quickValues };
+      const update = produce(root, (draft) => {
+        clearRunState(draft);
+        draft.inputError = null;
+        draft.result = null;
+      });
+      return { target: { values }, update };
     },
   },
   RunSelectedCases: {
@@ -622,6 +695,34 @@ export const LabMachine = Machine.make({
               }),
             };
           },
+        },
+      },
+    },
+    RunningQuickTest: {
+      on: { ...syncTransitions, ...presentationTransitions },
+      invoke: {
+        src: "runTriangle",
+        input: ({ state }) => state.values,
+        onDone: {
+          target: "Ready",
+          update: "root",
+          data: ({ root, output }) => ({
+            target: undefined,
+            update: produce(root, (draft) => {
+              recordQuickRun(draft, output);
+            }),
+          }),
+        },
+        onFailure: {
+          target: "RunFailed",
+          update: "root",
+          data: ({ root, error }) => ({
+            target: undefined,
+            update: produce(root, (draft) => {
+              clearRunState(draft);
+              draft.runError = String(error);
+            }),
+          }),
         },
       },
     },
@@ -713,6 +814,7 @@ export const labMachineAtom = AtomMachine.bind(labRuntime).make(LabMachine);
 const labValueResultAtom = AtomMachine.select(labMachineAtom, "");
 const runningCaseResultAtom = AtomMachine.matches(labMachineAtom, "RunningCase");
 const runningBatchResultAtom = AtomMachine.matches(labMachineAtom, "RunningBatch");
+const runningQuickTestResultAtom = AtomMachine.matches(labMachineAtom, "RunningQuickTest");
 
 function currentLabValue(result: AsyncResult.AsyncResult<Option.Option<Schema.Schema.Type<typeof LabStateSchema>>, unknown>) {
   const selected = result._tag === "Success"
@@ -740,4 +842,7 @@ export const visibleCasesAtom = Atom.make((get): ReadonlyArray<TriangleCase> => 
 });
 export const isRunningCaseAtom = Atom.make((get) => currentBoolean(get(runningCaseResultAtom)));
 export const isRunningBatchAtom = Atom.make((get) => currentBoolean(get(runningBatchResultAtom)));
-export const isBusyAtom = Atom.make((get) => get(isRunningCaseAtom) || get(isRunningBatchAtom));
+export const isRunningQuickTestAtom = Atom.make((get) => currentBoolean(get(runningQuickTestResultAtom)));
+export const isBusyAtom = Atom.make((get) =>
+  get(isRunningCaseAtom) || get(isRunningBatchAtom) || get(isRunningQuickTestAtom),
+);

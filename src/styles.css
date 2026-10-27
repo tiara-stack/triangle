@@ -20,7 +20,7 @@
   }
 
   .lab-page-with-history-drawer {
-    padding-block-end: var(--spacing-8);
+    padding-block-end: var(--spacing-12);
   }
 
   .lab-mobile-case-picker {
@@ -107,6 +107,7 @@
   .lab-result-panel {
     border-top: var(--border-width) solid var(--triangle-lab-line);
     background: var(--triangle-lab-surface);
+    scroll-margin-block-start: var(--spacing-3);
   }
 
   .lab-result-panel .astryx-section {
@@ -154,6 +155,20 @@
     .triangle-diagram {
       aspect-ratio: 1.4;
       max-block-size: none;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .triangle-diagram {
+      aspect-ratio: 2;
+      min-height: calc(var(--spacing-12) * 3.5);
+    }
+  }
+
+  @media (max-width: 560px) {
+    .triangle-diagram {
+      aspect-ratio: 2;
+      min-height: calc(var(--spacing-12) * 3.5);
     }
   }
 

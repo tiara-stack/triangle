@@ -52,12 +52,12 @@ function TriangleScene({ values, onReady, renderRevision, ink, correction }: Tri
         <Text
           anchorX="center"
           anchorY="middle"
-          color={correction}
+          color={ink}
           font={labelFont}
           fontSize={0.18}
           position={[0, 0, 0.02]}
         >
-          Enter whole sides
+          Enter side lengths
         </Text>
       </group>
     );

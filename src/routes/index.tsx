@@ -19,6 +19,7 @@ import {
   isBusyAtom,
   isRunningBatchAtom,
   isRunningCaseAtom,
+  isRunningQuickTestAtom,
   LabEvents,
   labMachineAtom,
   labStateAtom,
@@ -68,7 +69,9 @@ function TriangleLab() {
   const previousHistoryLength = useRef(state.history.length);
   const visibleCases = useAtomValue(visibleCasesAtom);
   const caseFilterOptions = useAtomValue(caseFilterOptionsAtom);
-  const isRunning = useAtomValue(isRunningCaseAtom);
+  const isRunningCase = useAtomValue(isRunningCaseAtom);
+  const isRunningQuickTest = useAtomValue(isRunningQuickTestAtom);
+  const isRunning = isRunningCase || isRunningQuickTest;
   const isBatchRunning = useAtomValue(isRunningBatchAtom);
   const isBusy = useAtomValue(isBusyAtom);
   const customCaseDraft = state.customCaseDraft;
@@ -87,6 +90,7 @@ function TriangleLab() {
 
   const activeCase = state.cases.find((testCase) => testCase.id === state.activeCaseId)!;
   const activeCaseNumber = state.cases.findIndex((testCase) => testCase.id === state.activeCaseId) + 1;
+  const hasRunLibraryCase = state.history.some((run) => run.caseId !== "manual-input");
 
   useEffect(() => {
     if (state.history.length <= previousHistoryLength.current) return;
@@ -107,7 +111,7 @@ function TriangleLab() {
 
       document.getElementById("result-panel")?.scrollIntoView({
         behavior: reduceMotion ? "auto" : "smooth",
-        block: "center",
+        block: "start",
       });
     });
   }, [
@@ -125,6 +129,35 @@ function TriangleLab() {
       send(LabEvents.MobileCaseLibraryVisibilityChanged({ isOpen: false }));
       send(LabEvents.CaseToolsVisibilityChanged({ isOpen: false }));
     }
+  }
+
+  function openMobileCaseLibrary() {
+    if (!isNarrow) return;
+
+    send(LabEvents.MobileCaseLibraryVisibilityChanged({ isOpen: true }));
+    window.requestAnimationFrame(() => {
+      const picker = document.querySelector(".lab-mobile-case-picker");
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      picker?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
+      picker?.querySelector("button")?.focus({ preventScroll: true });
+    });
+  }
+
+  function focusSideInputs() {
+    window.requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const inputHeading = document.getElementById("input-panel-title");
+      inputHeading?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      });
+      document
+        .querySelector<HTMLInputElement>('.lab-workspace [role="spinbutton"]')
+        ?.focus({ preventScroll: true });
+    });
   }
 
   function updateCaseFilters(nextFilters: ReadonlyArray<string>) {
@@ -191,6 +224,10 @@ function TriangleLab() {
   }
 
   function updateSide(side: keyof SideValues, value: number | null) {
+    if (state.viewMode === "compact") {
+      send(LabEvents.QuickSideChanged({ side, value: value === null ? "" : String(value) }));
+      return;
+    }
     if (activeCase.source !== "custom") return;
     send(LabEvents.UpdateSide({ side, value: value === null ? "" : String(value) }));
   }
@@ -208,6 +245,17 @@ function TriangleLab() {
     }
 
     send(LabEvents.RunCase());
+  }
+
+  function runQuickTest() {
+    if (isBusy) return;
+    const validationError = validateSideValues({ ...state.quickValues });
+    if (validationError) {
+      send(LabEvents.SideInputRejected({ error: validationError }));
+      return;
+    }
+
+    send(LabEvents.RunQuickTest());
   }
 
   function runSelectedCases() {
@@ -263,7 +311,8 @@ function TriangleLab() {
       activeCase={activeCase}
       activeCaseNumber={activeCaseNumber}
       caseCount={state.cases.length}
-      values={state.values}
+      isCompactMode={state.viewMode === "compact"}
+      values={state.viewMode === "compact" ? state.quickValues : state.values}
       result={state.result}
       inputError={state.inputError}
       hasRunError={hasRunError}
@@ -271,8 +320,10 @@ function TriangleLab() {
       isBusy={isBusy}
       isRunning={isRunning}
       onSideChange={updateSide}
-      onRunCase={runCase}
+      onRunCase={state.viewMode === "compact" ? runQuickTest : runCase}
       onResetCase={resetCase}
+      onChooseAnotherCase={openMobileCaseLibrary}
+      onEditSides={focusSideInputs}
     />
   );
 
@@ -286,20 +337,47 @@ function TriangleLab() {
     <AppShell className="lab-shell" contentPadding={4} height="fill">
       <Center axis="horizontal" width="100%">
         <VStack
-          className={isNarrow ? "lab-page" : "lab-page lab-page-with-history-drawer"}
+          className={isNarrow || state.history.length === 0 ? "lab-page" : "lab-page lab-page-with-history-drawer"}
           gap={isNarrow ? 2 : 4}
           maxWidth="99.125rem"
           width="100%"
         >
-          <VStack className="lab-page-header" gap={0.5}>
-            <Text className="lab-product-name" color="secondary" type="label">Triangle Test Lab</Text>
-            <Heading className="lab-page-title" level={1} id="workspace-title">Classify a triangle</Heading>
-            <Text color="secondary" type="supporting">
-              Run a case to compare results.
-            </Text>
-          </VStack>
+          <HStack
+            align="end"
+            className="lab-page-header"
+            gap={2}
+            justify="between"
+            width="100%"
+            wrap="wrap"
+          >
+            <VStack gap={0.5}>
+              <Text className="lab-product-name" color="secondary" type="label">Triangle Test Lab</Text>
+              <Heading className="lab-page-title" level={1} id="workspace-title">Classify a triangle</Heading>
+              <Text color="secondary" type="supporting">
+                {state.viewMode === "compact"
+                  ? "Enter three sides and run the classifier."
+                  : !hasRunLibraryCase
+                    ? "Try “a and c match” first. Passing examples should match the triangle rules."
+                    : "Run another case to compare results."}
+              </Text>
+            </VStack>
+            <HStack align="center" gap={1} justify="end" width={isNarrow ? "100%" : undefined}>
+              <Button
+                isDisabled={isBusy || state.isCustomCaseDialogOpen || state.isDeleteDialogOpen}
+                label={state.viewMode === "compact" ? "Show case library" : "Enter sides only"}
+                onClick={() => send(LabEvents.ViewModeChanged({
+                  mode: state.viewMode === "compact" ? "library" : "compact",
+                }))}
+                variant={isNarrow ? "ghost" : "secondary"}
+              >
+                {state.viewMode === "compact" ? "Show case library" : "Enter sides only"}
+              </Button>
+            </HStack>
+          </HStack>
 
-          {isNarrow ? (
+          {state.viewMode === "compact" ? (
+            workspace
+          ) : isNarrow ? (
             <VStack gap={3}>
               <VStack
                 className="lab-mobile-case-controls"
@@ -357,7 +435,7 @@ function TriangleLab() {
             />
           )}
 
-          {isNarrow && (
+          {isNarrow && state.history.length > 0 && (
             <RunHistory
               history={state.history}
               isNarrow
@@ -368,7 +446,7 @@ function TriangleLab() {
         </VStack>
       </Center>
 
-      {!isNarrow && (
+      {!isNarrow && state.history.length > 0 && (
         <RunHistory
           history={state.history}
           isNarrow={false}
