@@ -42,7 +42,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Install Playwright Chromium
-        run: node node_modules/playwright/cli.js install --with-deps chromium
+        run: node node_modules/@playwright/test/cli.js install --with-deps chromium
 
       - name: Run component and end-to-end lab tests
         run: pnpm test:lab

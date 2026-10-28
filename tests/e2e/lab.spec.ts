@@ -1,4 +1,4 @@
-import { expect, test } from "playwright/test";
+import { expect, test } from "@playwright/test";
 
 test("loads both example groups, runs the recommended case, and records a session run", async ({ page }) => {
   await page.goto("/");
