@@ -22,6 +22,8 @@ export const handlers = [
       failed: false,
     };
 
-    return HttpResponse.json({ values, ...result });
+    return HttpResponse.json({ values, ...result }, {
+      headers: { "cache-control": "no-store" },
+    });
   }),
 ];

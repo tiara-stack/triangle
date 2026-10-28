@@ -1,6 +1,5 @@
 import { Effect, Option, Schema, Stream } from "effect";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { FetchHttpClient, HttpClient } from "effect/http";
 import { Machine } from "@typeonce/effect-machine";
 import { AtomMachine } from "@typeonce/effect-machine/reactivity";
 import { produce, type Draft } from "immer";
@@ -24,7 +23,14 @@ import {
   type TriangleCase,
   type TriangleRun,
 } from "./triangle";
-import { runTriangleTestRequest } from "./triangle.http";
+import { TriangleApiClient } from "./triangleApiClient";
+
+const runTriangle = (values: SideValues) =>
+  Effect.gen(function*() {
+    const client = yield* TriangleApiClient;
+    const { body } = yield* client.triangle.run({ payload: values });
+    return body;
+  });
 
 function sideValuesInputError(values: SideValues): SideInputError | null {
   for (const side of ["a", "b", "c"] as const) {
@@ -129,12 +135,12 @@ type BatchStreamEvent =
 
 function batchStream(
   cases: ReadonlyArray<BatchCase>,
-): Stream.Stream<BatchStreamEvent, BatchRunError, HttpClient.HttpClient> {
-  return cases.reduce<Stream.Stream<BatchStreamEvent, BatchRunError, HttpClient.HttpClient>>(
+): Stream.Stream<BatchStreamEvent, BatchRunError, TriangleApiClient> {
+  return cases.reduce<Stream.Stream<BatchStreamEvent, BatchRunError, TriangleApiClient>>(
     (stream, batchCase) => {
       const started = Stream.succeed<BatchStreamEvent>({ _tag: "Started", batchCase });
       const completed = Stream.fromEffect(
-        runTriangleTestRequest(batchCase.values).pipe(
+        runTriangle(batchCase.values).pipe(
           Effect.map((result) => ({ _tag: "Completed" as const, batchCase, result })),
           Effect.mapError((error) => new BatchRunError({
             caseId: batchCase.caseId,
@@ -147,7 +153,7 @@ function batchStream(
       );
       return Stream.concat(stream, Stream.concat(started, completed));
     },
-    Stream.empty as Stream.Stream<BatchStreamEvent, BatchRunError, HttpClient.HttpClient>,
+    Stream.empty as Stream.Stream<BatchStreamEvent, BatchRunError, TriangleApiClient>,
   );
 }
 
@@ -678,7 +684,7 @@ export const LabMachine = Machine.make({
   root: LabStates,
   events: LabEvents,
   effects: {
-    runTriangle: (values: SideValues) => runTriangleTestRequest(values),
+    runTriangle,
   },
   streams: {
     runBatch: batchStream,
@@ -829,7 +835,7 @@ export const LabMachine = Machine.make({
   },
 });
 
-const labRuntime = Atom.runtime(FetchHttpClient.layer);
+const labRuntime = Atom.runtime(TriangleApiClient.layer);
 export const labMachineAtom = AtomMachine.bind(labRuntime).make(LabMachine);
 
 const labValueResultAtom = AtomMachine.select(labMachineAtom, "");

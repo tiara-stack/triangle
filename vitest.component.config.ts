@@ -5,6 +5,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react()],
   publicDir: "tests/browser-public",
+  optimizeDeps: {
+    include: ["effect/http-api"],
+  },
   test: {
     include: ["tests/**/*.component.test.tsx"],
     setupFiles: ["tests/setup.component.ts"],
