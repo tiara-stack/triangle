@@ -69,7 +69,7 @@ function formatSelectedFilters(items: ReadonlyArray<{ value: string; label: stri
     selectedValues.has("example:success") &&
     selectedValues.size === 2
   ) {
-    return "All 6 examples";
+    return "All 4 examples";
   }
   if (
     selectedValues.has("example:defect") &&
@@ -314,7 +314,7 @@ export function CaseLibrary({
 
         <MultiSelector
           description={hasAllBuiltInExamplesSelected
-            ? "Includes 3 defects and 3 passing examples."
+            ? "Includes 2 defects and 2 passing examples."
             : "Choose which case types to show."}
           hasClear
           isDisabled={isBusy}
