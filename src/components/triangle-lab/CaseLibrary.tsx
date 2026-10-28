@@ -288,7 +288,7 @@ export function CaseLibrary({
     </VStack>
   ) : (
     <Text color="secondary" type="supporting">
-      No cases match these filters. Clear the selected tags to show all cases.
+      No cases match these filters. Clear a filter to show more cases.
     </Text>
   );
 
@@ -347,7 +347,7 @@ export function CaseLibrary({
             )}
           >
             <MultiSelector
-              description="Combine result, output, defect, and custom tag filters."
+              description="Choose descriptive tags to narrow the case list. Every selected tag must match."
               hasClear
               hasSearch={advancedFilterCount > 12}
               isDisabled={isBusy}

@@ -135,12 +135,30 @@ export function createInitialLabState(): LabState {
 
 export const sourceCaseFilters = ["example:defect", "example:success", "custom"] as const;
 
+type TagFilterSource = "example" | "custom";
+
+type TagFilter = {
+  source: TagFilterSource;
+  tag: string;
+};
+
+function tagFilterValue(source: TagFilterSource, tag: string): string {
+  return `${source}-tag:${tag}`;
+}
+
+function parseTagFilter(filter: string): TagFilter | null {
+  if (filter.startsWith("example-tag:")) {
+    return { source: "example", tag: filter.slice("example-tag:".length) };
+  }
+  if (filter.startsWith("custom-tag:")) {
+    return { source: "custom", tag: filter.slice("custom-tag:".length) };
+  }
+  return null;
+}
+
 function filterGroupForTag(filter: string): string {
   if (sourceCaseFilters.includes(filter as (typeof sourceCaseFilters)[number])) return "Case source";
-  if (filter.startsWith("example:result:")) return "Example result";
-  if (filter.startsWith("example:output:expected:")) return "Expected output";
-  if (filter.startsWith("example:output:observed:")) return "Observed output";
-  if (filter.startsWith("example:defect:")) return "Defect";
+  if (parseTagFilter(filter)?.source === "example") return "Example tags";
   return "Custom tags";
 }
 
@@ -148,30 +166,11 @@ function labelForFilter(filter: string): string {
   if (filter === "example:defect") return "Verified defects";
   if (filter === "example:success") return "Passing examples";
   if (filter === "custom") return "Custom cases";
-  const capitalize = (value: string) => value.replace(/^\w/, (letter) => letter.toUpperCase());
-  if (filter.startsWith("example:output:expected:")) {
-    return capitalize(filter.slice("example:output:expected:".length).replace(/-/g, " "));
-  }
-  if (filter.startsWith("example:output:observed:")) {
-    return capitalize(filter.slice("example:output:observed:".length).replace(/-/g, " "));
-  }
-  if (filter.startsWith("example:result:")) {
-    return capitalize(filter.slice("example:result:".length).replace(/-/g, " ")) + " result";
-  }
-  if (filter.startsWith("example:defect:")) {
-    return capitalize(filter.slice("example:defect:".length).replace(/-/g, " "));
-  }
-  return filter;
-}
-
-function caseMatchesFilter(testCase: TriangleCase, filter: string): boolean {
-  if (sourceCaseFilters.includes(filter as (typeof sourceCaseFilters)[number])) {
-    return testCase.source === filter;
-  }
-  if (filter.startsWith("example:")) {
-    return testCase.source !== "custom" && testCase.tags.includes(filter);
-  }
-  return testCase.source === "custom" && testCase.tags.includes(filter);
+  const tagFilter = parseTagFilter(filter);
+  if (!tagFilter) return filter;
+  return tagFilter.source === "example"
+    ? tagFilter.tag.replace(/^\w/, (letter) => letter.toUpperCase())
+    : tagFilter.tag;
 }
 
 export function filterCasesByTags(
@@ -180,36 +179,42 @@ export function filterCasesByTags(
 ): ReadonlyArray<TriangleCase> {
   if (filters.length === 0) return cases;
 
-  const filtersByGroup = new Map<string, Array<string>>();
-  for (const filter of filters) {
-    const group = filterGroupForTag(filter);
-    const groupFilters = filtersByGroup.get(group) ?? [];
-    groupFilters.push(filter);
-    filtersByGroup.set(group, groupFilters);
-  }
-
-  return cases.filter((testCase) =>
-    [...filtersByGroup.values()].every((groupFilters) =>
-      groupFilters.some((filter) => caseMatchesFilter(testCase, filter)),
-    ),
+  const caseTypeFilters = filters.filter((filter) =>
+    sourceCaseFilters.includes(filter as (typeof sourceCaseFilters)[number]),
   );
+  const tagFilters = filters.flatMap((filter) => {
+    const tagFilter = parseTagFilter(filter);
+    return tagFilter ? [tagFilter] : [];
+  });
+
+  if (caseTypeFilters.length + tagFilters.length !== filters.length) return [];
+
+  return cases.filter((testCase) => {
+    const matchesCaseType = caseTypeFilters.length === 0 ||
+      caseTypeFilters.includes(testCase.source as (typeof sourceCaseFilters)[number]);
+    if (!matchesCaseType) return false;
+
+    const source: TagFilterSource = testCase.source === "custom" ? "custom" : "example";
+    if (tagFilters.some((tagFilter) => tagFilter.source !== source)) return false;
+    return tagFilters.every((tagFilter) => testCase.tags.includes(tagFilter.tag));
+  });
 }
 
 export function makeCaseFilterOptions(cases: ReadonlyArray<TriangleCase>): ReadonlyArray<CaseFilterOption> {
   const exampleTags = new Set(
     cases
       .filter((testCase) => testCase.source !== "custom")
-      .flatMap((testCase) => testCase.tags.filter((tag) => tag.startsWith("example:"))),
+      .flatMap((testCase) => testCase.tags),
   );
   const customTags = new Set(
     cases
       .filter((testCase) => testCase.source === "custom")
-      .flatMap((testCase) => testCase.tags.filter((tag) => !tag.startsWith("example:"))),
+      .flatMap((testCase) => testCase.tags),
   );
   const filters = [
     ...sourceCaseFilters,
-    ...[...exampleTags].sort(),
-    ...[...customTags].sort(),
+    ...[...exampleTags].sort().map((tag) => tagFilterValue("example", tag)),
+    ...[...customTags].sort().map((tag) => tagFilterValue("custom", tag)),
   ];
 
   return filters.map((value) => ({

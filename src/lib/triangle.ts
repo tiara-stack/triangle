@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Filter, Predicate, Result, Schema } from "effect";
 
 export type SideValues = {
   a: string;
@@ -121,10 +121,10 @@ export const verifiedCases: ReadonlyArray<VerifiedCase> = [
     failureExplanation: "The classifier misses the a = c pair, so it calls this valid triangle Scalene.",
     source: "example:defect",
     tags: [
-      "example:result:failed",
-      "example:output:expected:isosceles",
-      "example:output:observed:scalene",
-      "example:defect:equality",
+      "failed",
+      "expected isosceles",
+      "observed scalene",
+      "equal sides",
     ],
     values: { a: "2", b: "1", c: "2" },
   },
@@ -134,10 +134,10 @@ export const verifiedCases: ReadonlyArray<VerifiedCase> = [
     failureExplanation: "Triangle sides must satisfy a strict inequality; here the shorter sides sum exactly to the longest side.",
     source: "example:defect",
     tags: [
-      "example:result:failed",
-      "example:output:expected:not-a-triangle",
-      "example:output:observed:scalene",
-      "example:defect:triangle-boundary",
+      "failed",
+      "expected not a triangle",
+      "observed scalene",
+      "triangle boundary",
     ],
     values: { a: "1", b: "2", c: "1" },
   },
@@ -147,10 +147,10 @@ export const verifiedCases: ReadonlyArray<VerifiedCase> = [
     failureExplanation: "Side lengths up to 200 are allowed, so this valid isosceles triangle should be accepted.",
     source: "example:defect",
     tags: [
-      "example:result:failed",
-      "example:output:expected:isosceles",
-      "example:output:observed:value-out-of-range",
-      "example:defect:upper-bound",
+      "failed",
+      "expected isosceles",
+      "observed out of range",
+      "maximum side",
     ],
     values: { a: "1", b: "200", c: "200" },
   },
@@ -162,9 +162,9 @@ export const validCases: ReadonlyArray<ValidCase> = [
     name: "Valid equilateral",
     source: "example:success",
     tags: [
-      "example:result:passed",
-      "example:output:expected:equilateral",
-      "example:output:observed:equilateral",
+      "passed",
+      "expected equilateral",
+      "observed equilateral",
     ],
     values: { a: "3", b: "3", c: "3" },
   },
@@ -173,9 +173,9 @@ export const validCases: ReadonlyArray<ValidCase> = [
     name: "Valid isosceles",
     source: "example:success",
     tags: [
-      "example:result:passed",
-      "example:output:expected:isosceles",
-      "example:output:observed:isosceles",
+      "passed",
+      "expected isosceles",
+      "observed isosceles",
     ],
     values: { a: "4", b: "4", c: "5" },
   },
@@ -184,9 +184,9 @@ export const validCases: ReadonlyArray<ValidCase> = [
     name: "Valid scalene",
     source: "example:success",
     tags: [
-      "example:result:passed",
-      "example:output:expected:scalene",
-      "example:output:observed:scalene",
+      "passed",
+      "expected scalene",
+      "observed scalene",
     ],
     values: { a: "3", b: "4", c: "5" },
   },
@@ -194,33 +194,62 @@ export const validCases: ReadonlyArray<ValidCase> = [
 
 export const labCases: ReadonlyArray<TriangleCase> = [...verifiedCases, ...validCases];
 
-const classifyExpectedNumbers = Effect.fnUntraced(function*(
-  values: NumericSideValues,
-): Effect.fn.Return<TriangleOutput> {
-  const { a, b, c } = values;
-  if ([a, b, c].some((side) => side < 1 || side > 200)) return "Value is out of range";
-  if (!(a < b + c && b < a + c && c < a + b)) return "NotATriangle";
-  if (a === b && b === c) return "Equilateral";
-  if (a === b || a === c || b === c) return "Isosceles";
-  return "Scalene";
-});
+type ClassificationRule = {
+  (values: NumericSideValues): Result.Result<TriangleOutput, NumericSideValues>;
+};
 
-const classifyFaultyNumbers = Effect.fnUntraced(function*(
-  values: NumericSideValues,
-): Effect.fn.Return<TriangleOutput> {
-  const { a, b, c } = values;
-  if ([a, b, c].some((side) => side < 1 || side > 200) || b === 200) {
-    return "Value is out of range";
-  }
+const sideIsOutOfRange: Predicate.Predicate<number> = Predicate.or(
+  (side: number) => side < 1,
+  (side: number) => side > 200,
+);
 
-  // The teaching implementation accepts equality for b = a + c.
-  if (!(a < b + c && b <= a + c && c < a + b)) return "NotATriangle";
-  if (a === b && b === c) return "Equilateral";
+const hasOutOfRangeSide: Predicate.Predicate<NumericSideValues> = ({ a, b, c }) =>
+  [a, b, c].some(sideIsOutOfRange);
 
-  // Its isosceles check misses the a = c pair.
-  if (a === b || b === c) return "Isosceles";
-  return "Scalene";
-});
+const classificationRule = (
+  matches: Predicate.Predicate<NumericSideValues>,
+  result: TriangleOutput,
+): ClassificationRule =>
+  Filter.andRight(
+    Filter.fromPredicate(matches),
+    Filter.make(() => Result.succeed(result)),
+  );
+
+const expectedClassificationFilter = Filter.or(
+  classificationRule(hasOutOfRangeSide, "Value is out of range"),
+  Filter.or(
+    classificationRule(({ a, b, c }) => !(a < b + c && b < a + c && c < a + b), "NotATriangle"),
+    Filter.or(
+      classificationRule(({ a, b, c }) => a === b && b === c, "Equilateral"),
+      classificationRule(({ a, b, c }) => a === b || a === c || b === c, "Isosceles"),
+    ),
+  ),
+);
+
+const faultyClassificationFilter = Filter.or(
+  classificationRule(Predicate.or(hasOutOfRangeSide, ({ b }) => b === 200), "Value is out of range"),
+  Filter.or(
+    // The teaching implementation accepts equality for b = a + c.
+    classificationRule(({ a, b, c }) => !(a < b + c && b <= a + c && c < a + b), "NotATriangle"),
+    Filter.or(
+      classificationRule(({ a, b, c }) => a === b && b === c, "Equilateral"),
+      // Its isosceles check misses the a = c pair.
+      classificationRule(({ a, b, c }) => a === b || b === c, "Isosceles"),
+    ),
+  ),
+);
+
+const classifyNumbers = (values: NumericSideValues, rules: ClassificationRule) =>
+  Effect.orElseSucceed(
+    Effect.fromResult(rules(values)),
+    () => "Scalene" as const,
+  );
+
+const classifyExpectedNumbers = (values: NumericSideValues) =>
+  classifyNumbers(values, expectedClassificationFilter);
+
+const classifyFaultyNumbers = (values: NumericSideValues) =>
+  classifyNumbers(values, faultyClassificationFilter);
 
 export const evaluateTriangle = Effect.fnUntraced(function*(values: SideValues) {
   const decodedValues = yield* decodeSideValues(values);
@@ -236,5 +265,3 @@ export const evaluateTriangle = Effect.fnUntraced(function*(values: SideValues) 
     failed: expected !== observed,
   };
 });
-
-export const runTriangleTest = evaluateTriangle;

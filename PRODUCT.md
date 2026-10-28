@@ -34,7 +34,7 @@ The demo is tied to the software testing materials in `/opt/data/testing_hw`. Le
 - The same list includes valid equilateral, isosceles, and scalene controls that should pass.
 - Learners can save the current valid-range side triple as a named custom case and add optional comma-separated tags.
 - Creating a custom case starts with the active side values; built-in cases remain fixed.
-- The tag filter includes `example:defect`, `example:success`, `custom`, and any custom tags; the visible case list is derived from the selected filter.
+- Case type filters separate verified defects, passing examples, and custom cases. Simple descriptive tags narrow the list within their source; custom tags never classify a case as an example.
 - The initial case filter selects both `example:defect` and `example:success`, showing all six built-in cases before custom tags are applied.
 - Custom cases and their edits stay in the current session.
 - The workspace shows three bounded integer inputs, a triangle diagram, and expected and observed results.

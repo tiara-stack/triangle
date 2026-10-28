@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { expect, it } from "@effect/vitest";
-import { runTriangleTest, type SideValues, type TriangleOutput } from "../../src/lib/triangle";
+import { evaluateTriangle, type SideValues, type TriangleOutput } from "../../src/lib/triangle";
 
 const classifierCases: ReadonlyArray<{
   name: string;
@@ -42,7 +42,7 @@ const classifierCases: ReadonlyArray<{
 for (const testCase of classifierCases) {
   it.effect(testCase.name, () =>
     Effect.gen(function* () {
-      const result = yield* runTriangleTest(testCase.values);
+      const result = yield* evaluateTriangle(testCase.values);
 
       expect(result).toStrictEqual({
         values: testCase.values,
@@ -60,7 +60,7 @@ for (const values of [
 ]) {
   it.effect(`reports ${values.a} as outside the allowed side range`, () =>
     Effect.gen(function* () {
-      const result = yield* runTriangleTest(values);
+      const result = yield* evaluateTriangle(values);
 
       expect(result).toStrictEqual({
         values,
