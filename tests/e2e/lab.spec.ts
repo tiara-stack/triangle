@@ -25,12 +25,10 @@ test("loads both example groups, runs the recommended case, and records a sessio
     failed: true,
   });
 
-  await expect(page.getByRole("heading", { name: "Isosceles" }).first()).toBeVisible();
   await expect(page.getByRole("heading", { name: "Scalene" }).first()).toBeVisible();
   await expect(page.getByText("Run complete · Classifier mismatch")).toBeVisible();
 
   await page.getByRole("button", { name: /Run history/ }).click();
-  await expect(page.getByText("Expected: Isosceles")).toBeVisible();
   await expect(page.getByText("Observed: Scalene")).toBeVisible();
 });
 

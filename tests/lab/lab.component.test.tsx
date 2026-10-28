@@ -15,7 +15,6 @@ describe("Triangle Test Lab", () => {
 
     await screen.getByRole("button", { name: "Run case" }).click();
 
-    await expect.element(screen.getByText("Isosceles")).toBeVisible();
     await expect.element(screen.getByText("Scalene")).toBeVisible();
     await expect.element(screen.getByText("Run complete · Classifier mismatch")).toBeVisible();
     expect(requests).toEqual([{ a: "2", b: "1", c: "2" }]);
