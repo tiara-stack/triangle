@@ -214,22 +214,13 @@ export function TriangleWorkspace({
               <VStack gap={2} padding={isNarrow ? 2 : 3}>
                 <Heading level={3} id="result-panel-title">Result</Heading>
                 {result ? (
-                  <Grid align="start" columns={{ minWidth: 120, max: 2 }} gap={2}>
-                    <Section className="lab-result-expected" padding={2}>
-                      <VStack gap={0.5}>
-                        <Text color="secondary" type="label">Expected</Text>
-                        <Text color="secondary" type="supporting">Triangle rules</Text>
-                        <Heading level={4}>{displayTriangleOutput(result.expected)}</Heading>
-                      </VStack>
-                    </Section>
-                    <Section className="lab-result-observed" padding={2}>
-                      <VStack gap={0.5}>
-                        <Text color="secondary" type="label">Observed</Text>
-                        <Text color="secondary" type="supporting">Faulty classifier</Text>
-                        <Heading level={4}>{displayTriangleOutput(result.observed)}</Heading>
-                      </VStack>
-                    </Section>
-                  </Grid>
+                  <Section className="lab-result-observed" padding={2}>
+                    <VStack gap={0.5}>
+                      <Text color="secondary" type="label">Observed</Text>
+                      <Text color="secondary" type="supporting">Faulty classifier</Text>
+                      <Heading level={4}>{displayTriangleOutput(result.observed)}</Heading>
+                    </VStack>
+                  </Section>
                 ) : (
                   <Text color="secondary" type="supporting">
                     {hasRunError
