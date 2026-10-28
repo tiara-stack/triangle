@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Filter, Result, Schema } from "effect";
 import {
   labCases,
   verifiedCases,
@@ -189,15 +189,23 @@ export function filterCasesByTags(
 
   if (caseTypeFilters.length + tagFilters.length !== filters.length) return [];
 
-  return cases.filter((testCase) => {
-    const matchesCaseType = caseTypeFilters.length === 0 ||
-      caseTypeFilters.includes(testCase.source as (typeof sourceCaseFilters)[number]);
-    if (!matchesCaseType) return false;
+  const caseTypeFilter = caseTypeFilters.length === 0
+    ? Filter.fromPredicate<TriangleCase>(() => true)
+    : caseTypeFilters
+      .map((caseType) => Filter.fromPredicate((testCase: TriangleCase) => testCase.source === caseType))
+      .reduce((acceptedTypes, nextType) => Filter.or(acceptedTypes, nextType));
 
-    const source: TagFilterSource = testCase.source === "custom" ? "custom" : "example";
-    if (tagFilters.some((tagFilter) => tagFilter.source !== source)) return false;
-    return tagFilters.every((tagFilter) => testCase.tags.includes(tagFilter.tag));
-  });
+  const selectedTagFilters = tagFilters.map(({ source, tag }) =>
+    Filter.fromPredicate((testCase: TriangleCase) =>
+      (testCase.source === "custom" ? "custom" : "example") === source && testCase.tags.includes(tag)
+    ),
+  );
+  const caseFilter = selectedTagFilters.reduce(
+    (acceptedCase, nextTag) => Filter.andLeft(acceptedCase, nextTag),
+    caseTypeFilter,
+  );
+
+  return cases.filter((testCase) => Result.isSuccess(caseFilter(testCase)));
 }
 
 export function makeCaseFilterOptions(cases: ReadonlyArray<TriangleCase>): ReadonlyArray<CaseFilterOption> {
