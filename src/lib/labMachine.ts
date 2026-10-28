@@ -835,7 +835,7 @@ export const LabMachine = Machine.make({
   },
 });
 
-const labRuntime = Atom.runtime(TriangleApiClient.layer);
+const labRuntime = TriangleApiClient.runtime;
 export const labMachineAtom = AtomMachine.bind(labRuntime).make(LabMachine);
 
 const labValueResultAtom = AtomMachine.select(labMachineAtom, "");
