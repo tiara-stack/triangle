@@ -12,6 +12,9 @@
     "test": "pnpm run test:lab",
     "test:lab": "node node_modules/vitest/vitest.mjs run --config vitest.node.config.ts tests/lab/triangle-api.test.ts tests/lab/lab-state.test.ts && node node_modules/vitest/vitest.mjs run --config vitest.component.config.ts tests/lab/lab.component.test.tsx && node node_modules/@playwright/test/cli.js test --config playwright.config.ts tests/e2e/lab.spec.ts",
     "test:performative": "node scripts/performative-test.mjs",
+    "test:performative:direct": "node scripts/performative-test.mjs --direct",
+    "test:performative:browser": "node scripts/performative-test.mjs --browser",
+    "test:performative:qase": "node --env-file-if-exists=.env.local scripts/performative-test.mjs --qase",
     "astryx": "node node_modules/@astryxdesign/cli/clients/cli/bin/astryx.mjs"
   },
   "dependencies": {
