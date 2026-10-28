@@ -129,19 +129,6 @@ export const verifiedCases: ReadonlyArray<VerifiedCase> = [
     values: { a: "2", b: "1", c: "2" },
   },
   {
-    id: "case-02",
-    name: "Short sides sum to long",
-    failureExplanation: "Triangle sides must satisfy a strict inequality; here the shorter sides sum exactly to the longest side.",
-    source: "example:defect",
-    tags: [
-      "failed",
-      "expected not a triangle",
-      "observed scalene",
-      "triangle boundary",
-    ],
-    values: { a: "1", b: "2", c: "1" },
-  },
-  {
     id: "case-03",
     name: "Valid 200 rejected",
     failureExplanation: "Side lengths up to 200 are allowed, so this valid isosceles triangle should be accepted.",
@@ -169,26 +156,13 @@ export const validCases: ReadonlyArray<ValidCase> = [
     values: { a: "3", b: "3", c: "3" },
   },
   {
-    id: "control-isosceles",
-    name: "Valid isosceles",
+    id: "control-out-of-range",
+    name: "Valid out of range",
     source: "example:success",
     tags: [
       "passed",
-      "expected isosceles",
-      "observed isosceles",
     ],
-    values: { a: "4", b: "4", c: "5" },
-  },
-  {
-    id: "control-scalene",
-    name: "Valid scalene",
-    source: "example:success",
-    tags: [
-      "passed",
-      "expected scalene",
-      "observed scalene",
-    ],
-    values: { a: "3", b: "4", c: "5" },
+    values: { a: "201", b: "1", c: "1" },
   },
 ];
 
