@@ -223,7 +223,7 @@ y = paragraph("Example content for case 01", MARGIN, y - 3, WIDTH, size=12, lead
 form_rows = [
     [cell("Title", bold=True), cell("Classifies a = c as Isosceles")],
     [cell("Preconditions", bold=True), cell("Triangle Lab is open. Select Enter sides only.")],
-    [cell("Classic step / Action", bold=True), cell("Enter the three side lengths, click Run test, and read the classifier output.")],
+    [cell("Classic step / Action", bold=True), cell("Enter the three side lengths, click Run, and read the classifier output.")],
     [cell("Data", bold=True), cell("a = 2; b = 1; c = 2")],
     [cell("Expected result", bold=True, color=PURPLE), cell("Isosceles", bold=True, color=PURPLE)],
 ]
@@ -244,7 +244,7 @@ y = header(
 )
 y = number_step(1, "Start an express run", 'In Repository, select the four cases and click Run. Name it "Triangle demo - Manual" and start it.', y)
 y = number_step(2, "Open the run wizard", "Open any case in the run, or use Open Wizard. Keep Triangle Lab open in a second tab.", y)
-y = number_step(3, "Execute the case in Triangle Lab", "Select Enter sides only. Enter its a, b, c values and click Run test. Read the value under Observed / Faulty classifier.", y)
+y = number_step(3, "Execute the case in Triangle Lab", "Select Enter sides only. Enter its a, b, c values and click Run. Read the value under Observed / Faulty classifier.", y)
 y = number_step(4, "Record the result in Qase", "Compare that value with the case's expected result. Use Passed when they match and Failed when they differ. Add a brief comment and a screenshot for each failure.", y)
 
 top = y - 6

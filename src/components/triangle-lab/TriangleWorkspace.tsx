@@ -193,7 +193,7 @@ export function TriangleWorkspace({
                   <Button
                     isDisabled={isBusy}
                     isLoading={isRunning}
-                    label={isCompactMode ? "Run test" : "Run case"}
+                    label={isCompactMode ? "Run" : "Run case"}
                     type="submit"
                     variant="primary"
                   />

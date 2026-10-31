@@ -197,7 +197,7 @@ Manual test > Create manually opens the full case editor.
 Title: Classifies a = c as Isosceles. Choose the suite. In this workspace Status is called Actual. Automation status Manual, Type Functional.
 Pre-conditions: Triangle Lab open, Enter sides only selected.
 Test Case Steps: Classic > New step.
-Action: Enter the three side lengths, click Run test, read the classifier output.
+Action: Enter the three side lengths, click Run, read the classifier output.
 Data: a=2; b=1; c=2. Expected result: Isosceles.
 Use Save and create another for the remaining cases. Use the next slide as the answer sheet.
 Qase assigns real case IDs with the TR prefix. Keep them.
@@ -241,7 +241,7 @@ text("Whole numbers 1 through 200 are allowed, including 200.",44,465,872,18,PUR
 start("Manual execution", "Run, compare, record in Qase", "The expected result belongs to the case. The actual result comes from Triangle Lab.",notes="""
 Select only the four manual cases in the Qase Repository and click Run for an express run. Name the run 'Triangle demo - Manual'. Alternatively use Test Runs > Start new test run and choose the four cases.
 Open a case in the run or Open wizard. Keep the lab in another tab.
-In Triangle Lab choose Enter sides only, enter a,b,c and click Run test. Read Observed / Faulty classifier output.
+In Triangle Lab choose Enter sides only, enter a,b,c and click Run. Read Observed / Faulty classifier output.
 Passed means actual equals the case's expected result. Failed means they differ. An HTTP 200 alone does not make the classifier correct.
 In Add result, select Failed, add the Comment shown, attach the lab screenshot, and save the result. Do not change the expected result to the faulty output.
 After all four cases, verify 2 Passed and 2 Failed, then Complete the manual run.
@@ -249,7 +249,7 @@ The Add result image is a clearly labeled official Qase Help Center example beca
 Sources: https://docs.qase.io/en/articles/5563702-test-runs ; image https://docs.qase.io/en/articles/6417206-github
 """)
 y=step(1,"Select the four manual cases > Run","Name the run Triangle demo - Manual. Open its wizard.",44,157,width=530,size=18)
-y=step(2,"Enter sides in the lab > Run test","Read the faulty classifier's output, then compare it with the case.",44,y,width=530,size=18)
+y=step(2,"Enter sides in the lab > Run","Read the faulty classifier's output, then compare it with the case.",44,y,width=530,size=18)
 step(3,"Save Passed or Failed in Qase","For a failure, add a comment and attach the lab screenshot.",44,y,width=530,size=18)
 rect(44,418,530,73,LIGHT,radius=6)
 text("Example Comment",58,430,498,13,PURPLE,bold=True)

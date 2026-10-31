@@ -33,9 +33,12 @@ for (const example of defectExamples) {
       new URL(response.url()).pathname === "/api/triangle/run" &&
       response.request().method() === "POST",
     );
-    await page.getByRole("button", { name: "Run test" }).click();
+    await page.getByRole("button", { name: "Run" }).click();
     const response = await apiResponse;
     expect(response.status()).toBe(200);
+
+    const screenshot = await page.screenshot();
+    qase.attach({"name": "screenshot.png", "contentType": "image/png", "content": screenshot});
 
     const matchingOutputs = page.getByRole("heading", { name: example.expected });
     await expect(matchingOutputs.first()).toBeVisible();
@@ -59,9 +62,12 @@ for (const example of [
       new URL(response.url()).pathname === "/api/triangle/run" &&
       response.request().method() === "POST",
     );
-    await page.getByRole("button", { name: "Run test" }).click();
+    await page.getByRole("button", { name: "Run" }).click();
     const response = await apiResponse;
     expect(response.status()).toBe(200);
+
+    const screenshot = await page.screenshot();
+    qase.attach({"name": "screenshot.ong", "contentType": "image/png", "content": screenshot});
 
     await expect(page.getByRole("heading", { name: "Value is out of range" }).first()).toBeVisible();
     await expect(page.getByText("Run complete · Matches expected")).toBeVisible();
