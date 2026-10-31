@@ -30,6 +30,7 @@ type TriangleWorkspaceProps = {
   isRunning: boolean;
   onSideChange: (side: keyof SideValues, value: number | null) => void;
   onRunCase: (values: SideValues) => void;
+  onClearInputs: () => void;
   onResetCase: () => void;
   onChooseAnotherCase: () => void;
   onEditSides: () => void;
@@ -65,6 +66,7 @@ export function TriangleWorkspace({
   isRunning,
   onSideChange,
   onRunCase,
+  onClearInputs,
   onResetCase,
   onChooseAnotherCase,
   onEditSides,
@@ -195,6 +197,18 @@ export function TriangleWorkspace({
                     type="submit"
                     variant="primary"
                   />
+                  {(isCompactMode || activeCase.source === "custom") && (
+                    <Button
+                      isDisabled={isBusy}
+                      label="Clear inputs"
+                      onClick={() => {
+                        onClearInputs();
+                        form.reset({ a: "", b: "", c: "" });
+                      }}
+                      type="button"
+                      variant="secondary"
+                    />
+                  )}
                   {!isCompactMode && activeCase.source === "custom" && (
                     <Button
                       isDisabled={isBusy}

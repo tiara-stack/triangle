@@ -111,6 +111,7 @@ export const LabEvents = Machine.eventsFromSchemas(
       side: Schema.Literals(["a", "b", "c"]),
       value: Schema.String,
     },
+    ClearInputs: {},
     ResetCase: {},
     RunCase: { values: SideValuesSchema },
     RunQuickTest: { values: SideValuesSchema },
@@ -357,6 +358,29 @@ function updateQuickSide(lab: LabState, side: keyof SideValues, value: string): 
   });
 }
 
+function clearInputs(lab: LabState): LabState {
+  const activeCase = lab.cases.find((testCase) => testCase.id === lab.activeCaseId);
+  if (lab.viewMode !== "compact" && activeCase?.source !== "custom") return lab;
+
+  return produce(lab, (draft) => {
+    clearRunState(draft);
+    draft.inputError = null;
+    draft.result = null;
+    const values = { a: "", b: "", c: "" };
+
+    if (lab.viewMode === "compact") {
+      draft.quickValues = values;
+      return;
+    }
+
+    draft.values = values;
+    draft.valuesByCaseId[lab.activeCaseId] = { ...values };
+    draft.resultsByCaseId[lab.activeCaseId] = null;
+    draft.statuses[lab.activeCaseId] = "modified";
+    draft.isDirty = true;
+  });
+}
+
 function resetCase(lab: LabState): LabState {
   const testCase = lab.cases.find((candidate) => candidate.id === lab.activeCaseId)!;
   const priorRun = [...lab.history].reverse().find((run) =>
@@ -594,6 +618,14 @@ const syncTransitions = {
     data: ({ root, event }: RootEventContext<{ readonly side: keyof SideValues; readonly value: string }>) => ({
       target: undefined,
       update: updateQuickSide(root, event.side, event.value),
+    }),
+  },
+  ClearInputs: {
+    target: "Ready" as const,
+    update: "root" as const,
+    data: ({ root }: RootContext) => ({
+      target: undefined,
+      update: clearInputs(root),
     }),
   },
   ResetCase: {

@@ -263,6 +263,11 @@ function TriangleLab() {
     send(LabEvents.ResetCase());
   }
 
+  function clearInputs() {
+    if (isBusy) return;
+    send(LabEvents.ClearInputs());
+  }
+
   function runCase(values: SideValues) {
     if (isBusy) return;
     send(LabEvents.RunCase({ values }));
@@ -329,6 +334,7 @@ function TriangleLab() {
       isRunning={isRunning}
       onSideChange={updateSide}
       onRunCase={state.viewMode === "compact" ? runQuickTest : runCase}
+      onClearInputs={clearInputs}
       onResetCase={resetCase}
       onChooseAnotherCase={openMobileCaseLibrary}
       onEditSides={focusSideInputs}
