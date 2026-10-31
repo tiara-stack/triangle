@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { qase } from 'playwright-qase-reporter';
 
 const defectExamples = [
   {
@@ -20,6 +21,8 @@ const defectExamples = [
 
 for (const example of defectExamples) {
   test(example.name, async ({ page }) => {
+    qase.suite("e2e w/ Playwright");
+
     await page.goto("/");
     await page.getByRole("button", { name: "Enter sides only" }).click();
     for (const [index, side] of ["a", "b", "c"].entries()) {
@@ -44,6 +47,8 @@ for (const example of [
   { values: ["201", "1", "1"], label: "above the allowed range" },
 ] as const) {
   test(`accepts a raw input ${example.label} and reports it in the result`, async ({ page }) => {
+    qase.suite("e2e w/ Playwright");
+    
     await page.goto("/");
     await page.getByRole("button", { name: "Enter sides only" }).click();
     for (const [index, side] of ["a", "b", "c"].entries()) {

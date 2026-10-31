@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { expect, it } from "@effect/vitest";
+import { describe, expect, it } from "@effect/vitest";
 import { evaluateTriangle, type SideValues, type TriangleOutput } from "../../src/lib/triangle";
 
 const classifierCases: ReadonlyArray<{
@@ -29,6 +29,7 @@ const classifierCases: ReadonlyArray<{
   },
 ];
 
+describe("Unit tests w/ Vitest", () => {
 for (const testCase of classifierCases) {
   it.effect(testCase.name, () =>
     Effect.gen(function* () {
@@ -43,3 +44,4 @@ for (const testCase of classifierCases) {
     }),
   );
 }
+});

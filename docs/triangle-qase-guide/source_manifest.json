@@ -1,0 +1,106 @@
+{
+  "generated_on": "2026-10-28",
+  "source_revision": "785557b",
+  "outputs": [
+    "../triangle-qase-quick-guide.pdf",
+    "../triangle-qase-slides.pptx",
+    "../triangle-qase-slides.pdf"
+  ],
+  "build": {
+    "python_packages": [
+      "reportlab",
+      "Pillow",
+      "python-pptx",
+      "pymupdf"
+    ],
+    "commands": [
+      "python docs/triangle-qase-guide/build_guide.py",
+      "python docs/triangle-qase-guide/build_slides.py"
+    ],
+    "fonts": "DejaVu Sans and DejaVu Sans Mono from /usr/share/fonts/truetype/dejavu/"
+  },
+  "cases": [
+    {
+      "name": "a and c match",
+      "input": [
+        2,
+        1,
+        2
+      ],
+      "expected": "Isosceles",
+      "actual": "Scalene",
+      "result": "Failed"
+    },
+    {
+      "name": "200 is allowed",
+      "input": [
+        1,
+        200,
+        200
+      ],
+      "expected": "Isosceles",
+      "actual": "Value is out of range",
+      "result": "Failed"
+    },
+    {
+      "name": "Equilateral control",
+      "input": [
+        3,
+        3,
+        3
+      ],
+      "expected": "Equilateral",
+      "actual": "Equilateral",
+      "result": "Passed"
+    },
+    {
+      "name": "201 rejected",
+      "input": [
+        201,
+        1,
+        1
+      ],
+      "expected": "Value is out of range",
+      "actual": "Value is out of range",
+      "result": "Passed"
+    }
+  ],
+  "verified_existing_automation": {
+    "github": "https://github.com/tiara-stack/triangle/actions/runs/40702371101",
+    "qase_direct": "https://app.qase.io/run/TR/dashboard/15",
+    "qase_browser": "https://app.qase.io/run/TR/dashboard/16",
+    "per_suite": {
+      "passed": 2,
+      "failed": 2
+    },
+    "note": "Qase Browser UI shows four results and In Progress lifecycle status. Guide explains completing the run separately."
+  },
+  "images": {
+    "lab-ac-input-result.png": {
+      "source": "Current local Triangle Lab build, http://localhost:3000/",
+      "purpose": "Actual faulty output for a=2,b=1,c=2",
+      "capture": "T3 preview screenshot, cropped"
+    },
+    "qase-create-menu-crop.png": {
+      "source": "https://app.qase.io/project/TR",
+      "capture": "T3 preview screenshot, cropped",
+      "purpose": "Manual test > Create manually navigation"
+    },
+    "qase-case-steps-crop.png": {
+      "source": "https://app.qase.io/case/TR/create",
+      "capture": "T3 preview screenshot, cropped",
+      "purpose": "Unsaved example draft; discarded without creating a case"
+    },
+    "qase-run-table.png": {
+      "source": "https://app.qase.io/run/TR/dashboard/16",
+      "capture": "T3 preview screenshot, cropped",
+      "purpose": "Four actual uploaded Playwright results"
+    },
+    "qase-add-result.png": {
+      "source": "https://docs.qase.io/en/articles/6417206-github",
+      "capture": "Official Qase Help Center reference image, cropped",
+      "purpose": "Add result fields; labeled as a reference example in both documents"
+    }
+  },
+  "external_mutations": "No cases, results, tokens or workflow runs were created for the documents."
+}
