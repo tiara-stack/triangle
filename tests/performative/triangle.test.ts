@@ -30,18 +30,18 @@ const classifierCases: ReadonlyArray<{
 ];
 
 describe("Unit tests w/ Vitest", () => {
-for (const testCase of classifierCases) {
-  it.effect(testCase.name, () =>
-    Effect.gen(function* () {
-      const result = yield* evaluateTriangle(testCase.values);
+  for (const testCase of classifierCases) {
+    it.effect(testCase.name, () =>
+      Effect.gen(function* () {
+        const result = yield* evaluateTriangle(testCase.values);
 
-      expect(result).toStrictEqual({
-        values: testCase.values,
-        expected: testCase.expected,
-        observed: testCase.expected,
-        failed: false,
-      });
-    }),
-  );
-}
+        expect(result).toStrictEqual({
+          values: testCase.values,
+          expected: testCase.expected,
+          observed: testCase.expected,
+          failed: false,
+        });
+      }),
+    );
+  }
 });
